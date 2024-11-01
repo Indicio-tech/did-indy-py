@@ -1,0 +1,19 @@
+[project]
+name = "driver-did-indy"
+version = "0.1.0"
+description = "did:indy driver implementing the DID Registration Interface"
+authors = [
+    {name = "Daniel Bluhm", email = "dbluhm@pm.me"},
+]
+dependencies = []
+requires-python = ">=3.12"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+
+[tool.pdm]
+distribution = true
