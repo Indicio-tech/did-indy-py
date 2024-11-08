@@ -1,0 +1,4 @@
+[[ledgers]]
+namespace = "indicio:test"
+url = "https://raw.githubusercontent.com/Indicio-tech/indicio-network/main/genesis_files/pool_transactions_testnet_genesis"
+seed = "sRzIQdnF9Ta5BVK6YAGtXAzZ3LPtR-bMZvdZIjbnCCQ="
