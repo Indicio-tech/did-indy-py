@@ -67,6 +67,7 @@ async def lifespan(app: FastAPI):
         ledgers.add(ledger.namespace, pool)
         nyms.append((ledger.namespace, nym, verkey))
 
+    console = Console(width=120)
     table = Table(title="Generated Nyms", show_header=True, header_style="bold")
     table.add_column("Ledger")
     table.add_column("Nym")

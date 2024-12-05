@@ -1,6 +1,12 @@
 """Utilities."""
 
 import asyncio
+from dataclasses import dataclass
+from hashlib import sha256
+from typing import Tuple, cast
+
+from aries_askar import Key, Store
+from base58 import b58decode, b58encode
 from httpx import AsyncClient, HTTPStatusError, Response
 
 
@@ -130,3 +136,46 @@ async def fetch(
             except (HTTPStatusError, asyncio.TimeoutError) as e:
                 if attempt.final:
                     raise FetchError("Exceeded maximum fetch attempts") from e
+
+
+@dataclass
+class DidIndy:
+    """Parsed did:indy DID."""
+
+    namespace: str
+    nym: str
+
+
+def parse_did_indy(did: str) -> DidIndy:
+    """Extract info from a did:indy DID."""
+    method_and_namespace, nym = did.rsplit(":", maxsplit=1)
+    namespace = method_and_namespace.removeprefix("did:indy:")
+    return DidIndy(namespace, nym)
+
+
+def nym_from_verkey(verkey: str, version: int = 2) -> str:
+    """Generate a nym from a verkey."""
+    key = b58decode(verkey)
+    if version == 2:
+        nym = b58encode(sha256(key).digest()[:16]).decode()
+    else:
+        nym = b58encode(key[:16]).decode()
+    return nym
+
+
+class NymNotFoundError(Exception):
+    """Raised when no nym is found for ledger."""
+
+
+async def get_nym_and_key(store: Store, namespace: str) -> Tuple[str, Key]:
+    """Retrieve our nym and key for this ledger."""
+    async with store.session() as session:
+        entry = await session.fetch_key(namespace)
+    if not entry:
+        raise NymNotFoundError(f"No nym found for {namespace}")
+
+    key = cast(Key, entry.key)
+    tags = cast(dict, entry.tags)
+    nym = tags.get("nym")
+    assert nym, "Key was saved without a nym tag"
+    return nym, key

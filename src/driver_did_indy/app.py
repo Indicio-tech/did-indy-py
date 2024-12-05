@@ -6,6 +6,7 @@ from driver_did_indy.depends import lifespan
 
 from .webhooks import webhooks
 from . import txns
+from . import namespaces
 
 LOG_LEVEL = getenv("LOG_LEVEL", "DEBUG")
 logging.config.dictConfig(
@@ -67,3 +68,4 @@ app = FastAPI(
 )
 
 app.include_router(txns.router)
+app.include_router(namespaces.router)

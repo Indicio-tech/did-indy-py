@@ -6,18 +6,22 @@ authors = [
     {name = "Daniel Bluhm", email = "dbluhm@pm.me"},
 ]
 dependencies = [
+    "httpx>=0.27.2",
+]
+requires-python = ">=3.12"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+
+[project.optional-dependencies]
+driver = [
     "fastapi[standard]>=0.115.4",
     "aries-askar>=0.3.2",
     "indy-vdr>=0.4.2",
     "pydantic>=2.9.2",
     "base58>=2.1.1",
     "pydantic-settings>=2.6.1",
-    "httpx>=0.27.2",
     "rich>=13.9.4",
 ]
-requires-python = ">=3.12"
-readme = "README.md"
-license = {text = "Apache-2.0"}
 
 [tool.pdm.dev-dependencies]
 dev = [
@@ -37,4 +41,6 @@ build-backend = "pdm.backend"
 
 [tool.pdm]
 distribution = true
+
+[tool.pdm.build]
 

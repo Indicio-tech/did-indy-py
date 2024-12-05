@@ -1,12 +1,13 @@
 """Ledger loading and management."""
 
 import asyncio
+import base64
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from io import StringIO
 import logging
 from pathlib import Path
-from typing import Mapping, Optional, Tuple, cast
+from typing import Mapping, Optional, Tuple, TypeVar, cast
 import tempfile
 import hashlib
 import os
@@ -16,7 +17,7 @@ from indy_vdr import Pool, VdrError, ledger, open_pool, Request
 
 from driver_did_indy.cache import Cache
 from driver_did_indy.config import LocalLedgerGenesis, RemoteLedgerGenesis
-from driver_did_indy.utils import FetchError, fetch
+from driver_did_indy.utils import FetchError, fetch, get_nym_and_key
 
 
 LOGGER = logging.getLogger(__name__)
@@ -111,10 +112,6 @@ class BadLedgerRequestError(LedgerError):
 
 class LedgerTransactionError(LedgerError):
     """Raised on error with a txn."""
-
-
-class NymNotFoundError(LedgerError):
-    """Raised when no nym is found for ledger."""
 
 
 class LedgerPool:
@@ -311,24 +308,33 @@ class TAAInfo:
     required: bool
 
 
-class Ledger:
-    """Ledger interface."""
+@dataclass
+class TaaAcceptance:
+    """TAA Acceptance data."""
+
+    taaDigest: str
+    mechanism: str
+    time: int
+
+
+T = TypeVar("T", bound="BaseLedger")
+
+
+class BaseLedger:
+    """Read Only Ledger interface."""
 
     def __init__(
         self,
         pool: LedgerPool,
-        store: Store,
     ):
         """Initialize an IndyVdrLedger instance.
 
         Args:
             pool: The pool instance handling the raw ledger connection
-            profile: The active profile instance
         """
         self.pool = pool
-        self.store = store
 
-    async def __aenter__(self) -> "Ledger":
+    async def __aenter__(self: T) -> T:
         """Context manager entry.
 
         Returns:
@@ -342,18 +348,24 @@ class Ledger:
         """Context manager exit."""
         await self.pool.context_close()
 
-    async def get_nym_and_key(self) -> Tuple[str, Key]:
-        """Retrieve our nym and key for this ledger."""
-        async with self.store.session() as session:
-            entry = await session.fetch_key(self.pool.name)
-        if not entry:
-            raise NymNotFoundError(f"No nym found for {self.pool.name}")
+    async def get(self, request: str | Request):
+        """Submit a get request to the ledger."""
+        if not self.pool.handle:
+            raise ClosedPoolError(
+                f"Cannot sign and submit request to closed pool '{self.pool.name}'"
+            )
 
-        key = cast(Key, entry.key)
-        tags = cast(dict, entry.tags)
-        nym = tags.get("nym")
-        assert nym, "Key was saved without a nym tag"
-        return nym, key
+        if isinstance(request, str):
+            request = ledger.build_custom_request(request)
+        elif not isinstance(request, Request):
+            raise BadLedgerRequestError("Expected str or Request")
+
+        try:
+            request_result = await self.pool.handle.submit_request(request)
+        except VdrError as err:
+            raise LedgerTransactionError("Ledger request error") from err
+
+        return request_result
 
     def taa_digest(self, version: str, text: str):
         """Generate the digest of a TAA record."""
@@ -382,6 +394,54 @@ class Ledger:
             taa_record = TAARecord(taa_found["text"], taa_found["version"], digest)
 
         return TAAInfo(aml_found, taa_record, taa_required)
+
+
+class ReadOnlyLedger(BaseLedger):
+    """Read Only Ledger interface."""
+
+
+class Ledger(BaseLedger):
+    """Ledger interface."""
+
+    def __init__(
+        self,
+        pool: LedgerPool,
+        store: Store,
+    ):
+        """Initialize an IndyVdrLedger instance.
+
+        Args:
+            pool: The pool instance handling the raw ledger connection
+            store: The askar store
+        """
+        super().__init__(pool)
+        self.store = store
+
+    async def get_nym_and_key(self) -> Tuple[str, Key]:
+        """Retrieve our nym and key for this ledger."""
+        return await get_nym_and_key(self.store, self.pool.name)
+
+    async def validate_taa_acceptance(self, acceptance: TaaAcceptance | None):
+        """Validate a taa acceptance digest."""
+        info = await self.get_txn_author_agreement()
+        if not info.required or not info.taa:
+            return
+
+        if acceptance is None:
+            raise LedgerTransactionError("TAA is required for this namespace")
+
+        expected = self.taa_digest(info.taa.version, info.taa.text)
+        if acceptance.taaDigest != expected:
+            raise LedgerTransactionError("Invalid TAA digest")
+
+        assert "aml" in info.aml
+        valid_mechanisms = list(info.aml["aml"].keys())
+        if acceptance.mechanism not in valid_mechanisms:
+            raise LedgerTransactionError("Invalid TAA mechanism")
+
+        # TODO validate time
+        if acceptance.time < 0:
+            raise LedgerTransactionError("Invalid TAA time")
 
     def taa_rough_timestamp(self) -> int:
         """Get a timestamp accurate to the day.
@@ -436,25 +496,6 @@ class Ledger:
             await self.pool.cache.set(cache_key, acceptance, self.pool.cache_duration)
         return acceptance
 
-    async def get(self, request: str | Request):
-        """Submit a get request to the ledger."""
-        if not self.pool.handle:
-            raise ClosedPoolError(
-                f"Cannot sign and submit request to closed pool '{self.pool.name}'"
-            )
-
-        if isinstance(request, str):
-            request = ledger.build_custom_request(request)
-        elif not isinstance(request, Request):
-            raise BadLedgerRequestError("Expected str or Request")
-
-        try:
-            request_result = await self.pool.handle.submit_request(request)
-        except VdrError as err:
-            raise LedgerTransactionError("Ledger request error") from err
-
-        return request_result
-
     async def submit(
         self,
         request: str | Request,
@@ -496,7 +537,12 @@ class Ledger:
 
         return request_result
 
-    async def endorse_and_submit(self, request: str | Request) -> dict:
+    async def endorse_and_submit(
+        self,
+        request: str | Request,
+        submitter: str | None,
+        submitter_signature: str | bytes | None,
+    ) -> dict:
         """Endorse and submit a request."""
 
         if not self.pool.handle:
@@ -513,6 +559,14 @@ class Ledger:
 
         request.set_endorser(nym)
         request.set_multi_signature(nym, key.sign_message(request.signature_input))
+
+        if submitter:
+            if isinstance(submitter_signature, str):
+                submitter_signature = base64.urlsafe_b64decode(submitter_signature)
+            elif submitter_signature is None:
+                raise BadLedgerRequestError("Submitter signature required")
+
+            request.set_multi_signature(submitter, submitter_signature)
 
         try:
             request_result = await self.pool.handle.submit_request(request)

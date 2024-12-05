@@ -14,7 +14,7 @@ ENV PATH="/opt/pdm/bin:$PATH"
 
 # Setup project
 COPY pyproject.toml pdm.lock README.md ./
-RUN pdm install --without dev
+RUN pdm install --without dev --with driver
 
 FROM python:3.12-slim-bookworm
 WORKDIR /usr/src/app

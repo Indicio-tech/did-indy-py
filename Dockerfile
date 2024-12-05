@@ -16,7 +16,7 @@ ENV PATH="/opt/pdm/bin:$PATH"
 # Setup project
 COPY pyproject.toml pdm.lock README.md ./
 RUN mkdir -p src/driver_did_indy && touch src/driver_did_indy/__init__.py
-RUN pdm install
+RUN pdm install -G driver
 
 COPY healthcheck.py ./
 COPY src ./src

@@ -3,6 +3,7 @@ services:
 
   driver-did-indy:
     platform: linux/amd64
+    image: driver-did-indy
     build:
       context: ..
     ports:
@@ -19,3 +20,16 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  demo:
+    platform: linux/amd64
+    image: driver-did-indy
+    volumes:
+      - "../src:/usr/src/app/src:z"
+      - "./main.py:/usr/src/app/main.py:z"
+    command: ["python", "main.py"]
+    environment:
+      DRIVER: http://driver-did-indy
+    depends_on:
+      driver-did-indy:
+        condition: service_healthy
