@@ -3,9 +3,17 @@
 from base64 import urlsafe_b64decode, urlsafe_b64encode
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timezone
-from typing import Any, Dict, List, Mapping, Optional
+import logging
+from typing import (
+    Any,
+    List,
+    Mapping,
+    Optional,
+)
 
-from httpx import AsyncClient
+from did_indy_client.http_client import HTTPClient, Serde
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -16,19 +24,23 @@ class TAARecord:
 
 
 @dataclass
-class TAAInfo:
+class TAAInfo(Serde):
     aml: dict
     taa: TAARecord | None
     required: bool
 
+    def serialize(self) -> Mapping[str, Any]:
+        return asdict(self)
+
     @classmethod
-    def from_response(cls, response: Dict[str, Any]) -> "TAAInfo":
-        record = response.pop("taa", None)
+    def deserialize(cls, value: Mapping[str, Any]) -> "TAAInfo":
+        value = dict(value)
+        record = value.pop("taa", None)
         if record:
             record = TAARecord(**record)
 
         return TAAInfo(
-            **response,
+            **value,
             taa=record,
         )
 
@@ -65,29 +77,41 @@ class TxnToSignResponse:
         return urlsafe_b64decode(self.signature_input)
 
 
-class IndyClient:
-    """Client to the did:indy driver."""
+@dataclass
+class SchemaSubmitResponse:
+    """Response to schema submission."""
 
-    def __init__(self, base_url: str):
-        """Init the client."""
-        self.base_url = base_url
+    schema_id: str
+    indy_schema_id: str
+    registration_metadata: dict
+    schema_metadata: dict
+
+
+@dataclass
+class CredDefSubmitResponse:
+    """Response to cred def submission."""
+
+    cred_def_id: str
+    indy_cred_def_id: str
+    registration_metadata: dict
+    schema_metadata: dict
+
+
+class IndyClientError(Exception):
+    """Raised on errors in indy client."""
+
+
+class IndyClient(HTTPClient):
+    """Client to the did:indy driver."""
 
     async def get_namespaces(self) -> List[str]:
         """Get namespaces."""
-        async with AsyncClient(base_url=self.base_url) as session:
-            resp = await session.get(url="/namespace")
-            resp.raise_for_status()
-            body = resp.json()
-
-        return body["namespaces"]
+        result = await self.get("/namespace")
+        return result["namespaces"]
 
     async def get_taa(self, namespace: str) -> TAAInfo:
         """Get TAA Info."""
-        async with AsyncClient(base_url=self.base_url) as session:
-            resp = await session.get(url=f"/taa/{namespace}")
-            resp.raise_for_status()
-            result = TAAInfo.from_response(resp.json())
-
+        result = await self.get(f"/taa/{namespace}", response=TAAInfo)
         return result
 
     def taa_rough_timestamp(self) -> int:
@@ -128,50 +152,79 @@ class IndyClient:
         taa: TaaAcceptance | None = None,
     ) -> CreateNymResult:
         """Create a new nym on the ledger."""
-
-        async with AsyncClient(base_url=self.base_url) as session:
-            resp = await session.post(
-                url="/txn/nym",
-                json={
-                    "namespace": namespace,
-                    "verkey": verkey,
-                    "nym": nym,
-                    "role": role,
-                    "diddocContent": diddoc_content,
-                    "version": version,
-                    "taa": asdict(taa) if taa else None,
-                },
-            )
-            resp.raise_for_status()
-            result = CreateNymResult(**resp.json())
-
+        result = await self.post(
+            url="/txn/nym",
+            json={
+                "namespace": namespace,
+                "verkey": verkey,
+                "nym": nym,
+                "role": role,
+                "diddocContent": diddoc_content,
+                "version": version,
+                "taa": asdict(taa) if taa else None,
+            },
+            response=CreateNymResult,
+        )
         return result
 
     async def create_schema(
         self,
-        issuer_id: str,
-        attr_names: List[str],
-        name: str,
-        version: str,
+        schema: dict | str,
         taa: TaaAcceptance | None = None,
     ) -> TxnToSignResponse:
         """Create a schema."""
-        async with AsyncClient(base_url=self.base_url) as session:
-            resp = await session.post(
-                url="/txn/schema",
-                json={
-                    "issuer_id": issuer_id,
-                    "attr_names": attr_names,
-                    "name": name,
-                    "version": version,
-                    "taa": asdict(taa) if taa else None,
-                },
-            )
-            resp.raise_for_status()
-            result = TxnToSignResponse(**resp.json())
+        result = await self.post(
+            url="/txn/schema",
+            json={
+                "schema": schema,
+                "taa": asdict(taa) if taa else None,
+            },
+            response=TxnToSignResponse,
+        )
         return result
 
-    async def submit(
+    async def submit_schema(
+        self,
+        submitter: str,
+        request: str,
+        signature: str | bytes,
+    ) -> SchemaSubmitResponse:
+        """Submit a signed txn."""
+        if isinstance(signature, bytes):
+            signature = urlsafe_b64encode(signature).decode()
+
+        result = await self.post(
+            url="/txn/schema/submit",
+            json={
+                "submitter": submitter,
+                "request": request,
+                "signature": signature,
+            },
+            response=SchemaSubmitResponse,
+        )
+        return result
+
+    async def create_cred_def(
+        self,
+        issuer_id: str,
+        schema_id: str,
+        cred_def: dict | str,
+        taa: TaaAcceptance | None = None,
+    ) -> TxnToSignResponse:
+        """Create a cred def."""
+        result = await self.post(
+            url="/txn/credential-definition",
+            json={
+                "issuer_id": issuer_id,
+                "schema_id": schema_id,
+                "cred_def": cred_def,
+                "taa": asdict(taa) if taa else None,
+            },
+            response=TxnToSignResponse,
+        )
+        return result
+
+    async def submit_cred_def(
         self,
         submitter: str,
         request: str,
@@ -181,14 +234,12 @@ class IndyClient:
         if isinstance(signature, bytes):
             signature = urlsafe_b64encode(signature).decode()
 
-        async with AsyncClient(base_url=self.base_url) as session:
-            resp = await session.post(
-                url="/txn/submit",
-                json={
-                    "submitter": submitter,
-                    "request": request,
-                    "signature": signature,
-                },
-            )
-            resp.raise_for_status()
-            return resp.json()
+        result = await self.post(
+            url="/txn/credential-definition/submit",
+            json={
+                "submitter": submitter,
+                "request": request,
+                "signature": signature,
+            },
+        )
+        return result

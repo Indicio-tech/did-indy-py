@@ -1,19 +1,27 @@
+import base64
 from dataclasses import asdict
 import json
-from typing import Any, List, Mapping
-import base64
+from typing import Any, Mapping
 
 from fastapi import APIRouter, HTTPException
 from indy_vdr import VdrError
-from pydantic import BaseModel
+from indy_vdr.error import VdrErrorCode
 from indy_vdr.ledger import (
+    build_cred_def_request,
     build_nym_request,
     build_schema_request,
 )
-from indy_vdr.error import VdrErrorCode
+from pydantic import BaseModel, Field
 
 from driver_did_indy.depends import LedgersDep, StoreDep
 from driver_did_indy.ledgers import Ledger, LedgerTransactionError, TaaAcceptance
+from driver_did_indy.models.anoncreds import CredDef, Schema
+from driver_did_indy.models.txn import (
+    CredDefTxnData,
+    SchemaTxnData,
+    TxnMetadata,
+    TxnResult,
+)
 from driver_did_indy.utils import (
     NymNotFoundError,
     get_nym_and_key,
@@ -109,29 +117,35 @@ async def post_nym(
 class SchemaRequest(BaseModel):
     """Schema Create Request."""
 
-    issuer_id: str
-    attr_names: List[str]
-    name: str
-    version: str
-    taa: TaaAcceptance
+    schema_value: Schema | str = Field(alias="schema")
+    taa: TaaAcceptance | None = None
 
 
-class SchemaResponse(BaseModel):
+class TxnToSignResponse(BaseModel):
     """Schema Create Response."""
 
     request: str
     signature_input: str
 
 
-def make_schema_id(nym: str, schema: SchemaRequest) -> str:
-    """Derive the ID for a schema."""
+def make_indy_schema_id(nym: str, schema: Schema) -> str:
+    """Derive the indy schema ID for a schema."""
     return f"{nym}:2:{schema.name}:{schema.version}"
 
 
+def make_schema_id(schema: Schema) -> str:
+    """Derive the DID Url for a schema."""
+    return f"{schema.issuer_id}/anoncreds/v0/SCHEMA/{schema.name}/{schema.version}"
+
+
 @router.post("/schema")
-async def post_schema(req: SchemaRequest, store: StoreDep):
+async def post_schema(req: SchemaRequest, store: StoreDep) -> TxnToSignResponse:
     """Create a schema and return a txn for the client to sign and later submit."""
-    submitter = parse_did_indy(req.issuer_id)
+    schema = req.schema_value
+    if isinstance(schema, str):
+        schema = Schema.model_validate_json(schema)
+
+    submitter = parse_did_indy(schema.issuer_id)
     try:
         nym, _ = await get_nym_and_key(store, submitter.namespace)
     except NymNotFoundError as error:
@@ -139,19 +153,21 @@ async def post_schema(req: SchemaRequest, store: StoreDep):
             404, f"No nym found for namespace {submitter.namespace}"
         ) from error
 
-    schema_id = make_schema_id(submitter.nym, req)
+    schema_id = make_indy_schema_id(submitter.nym, schema)
     indy_schema = {
         "ver": "1.0",
         "id": schema_id,
-        "name": req.name,
-        "version": req.version,
-        "attrNames": req.attr_names,
+        "name": schema.name,
+        "version": schema.version,
+        "attrNames": schema.attr_names,
         "seqNo": None,
     }
     request = build_schema_request(submitter_did=submitter.nym, schema=indy_schema)
     request.set_endorser(nym)
-    request.set_txn_author_agreement_acceptance(asdict(req.taa))
-    return SchemaResponse(
+    if req.taa:
+        request.set_txn_author_agreement_acceptance(asdict(req.taa))
+
+    return TxnToSignResponse(
         request=request.body,
         signature_input=base64.urlsafe_b64encode(request.signature_input).decode(),
     )
@@ -165,8 +181,19 @@ class SubmitRequest(BaseModel):
     signature: str
 
 
-@router.post("/submit")
-async def post_submit(req: SubmitRequest, ledgers: LedgersDep, store: StoreDep):
+class SchemaSubmitResponse(BaseModel):
+    """Schema submit response."""
+
+    schema_id: str
+    indy_schema_id: str
+    registration_metadata: TxnResult
+    schema_metadata: TxnMetadata
+
+
+@router.post("/schema/submit")
+async def post_schema_submit(
+    req: SubmitRequest, ledgers: LedgersDep, store: StoreDep
+) -> SchemaSubmitResponse:
     """Endorse and submit a txn."""
     submitter = parse_did_indy(req.submitter)
     pool = ledgers.get(submitter.namespace)
@@ -177,4 +204,128 @@ async def post_submit(req: SubmitRequest, ledgers: LedgersDep, store: StoreDep):
         result = await ledger.endorse_and_submit(
             req.request, submitter.nym, req.signature
         )
-        return result
+        print(result)
+    result = TxnResult[SchemaTxnData].model_validate(result)
+    schema = Schema(
+        issuer_id=req.submitter,
+        attr_names=result.txn.data.data.attr_names,
+        name=result.txn.data.data.name,
+        version=result.txn.data.data.version,
+    )
+
+    return SchemaSubmitResponse(
+        schema_id=make_schema_id(schema),
+        indy_schema_id=make_indy_schema_id(submitter.nym, schema),
+        registration_metadata=result,
+        schema_metadata=result.txnMetadata,
+    )
+
+
+class CredDefRequest(BaseModel):
+    """Credential Definition create request."""
+
+    issuer_id: str
+    schema_id: str
+    cred_def: CredDef | str
+    taa: TaaAcceptance | None = None
+
+
+def make_indy_cred_def_id_from_result(nym: str, cred_def: CredDefTxnData) -> str:
+    """Make cred def ID."""
+    return f"{nym}:3:{cred_def.signature_type}:{cred_def.ref}:{cred_def.tag}"
+
+
+def make_indy_cred_def_id(nym: str, cred_def: CredDef, schema_seq_no: int) -> str:
+    """Make cred def ID."""
+    return f"{nym}:3:{cred_def.type}:{schema_seq_no}:{cred_def.tag}"
+
+
+def make_cred_def_id(did: str, cred_def: CredDefTxnData) -> str:
+    """Make cred def ID."""
+    return f"{did}/anoncreds/v0/CLAIM_DEF/{cred_def.ref}/{cred_def.tag}"
+
+
+@router.post("/credential-definition")
+async def post_credential_definition(
+    req: CredDefRequest, ledgers: LedgersDep, store: StoreDep
+) -> TxnToSignResponse:
+    """Create a schema and return a txn for the client to sign and later submit."""
+    submitter = parse_did_indy(req.issuer_id)
+    try:
+        nym, _ = await get_nym_and_key(store, submitter.namespace)
+    except NymNotFoundError as error:
+        raise HTTPException(
+            404, f"No nym found for namespace {submitter.namespace}"
+        ) from error
+
+    pool = ledgers.get(submitter.namespace)
+    if not pool:
+        raise HTTPException(404, f"No ledger known for namespace {submitter.namespace}")
+
+    async with Ledger(pool, store) as ledger:
+        try:
+            schema_deref = await ledger.get_schema(req.schema_id)
+        except LedgerTransactionError as error:
+            raise HTTPException(400, f"Cannot retrieve schema: {error}") from error
+
+    if isinstance(req.cred_def, str):
+        req.cred_def = CredDef.model_validate_json(req.cred_def)
+
+    schema_seq_no = schema_deref.contentMetadata.nodeResponse.result.seqNo
+    cred_def_id = make_indy_cred_def_id(submitter.nym, req.cred_def, schema_seq_no)
+
+    indy_cred_def = {
+        "id": cred_def_id,
+        "schemaId": str(schema_seq_no),
+        "tag": req.cred_def.tag,
+        "type": req.cred_def.type,
+        "value": req.cred_def.value,
+        "ver": "1.0",
+    }
+
+    request = build_cred_def_request(
+        submitter_did=submitter.nym, cred_def=indy_cred_def
+    )
+    request.set_endorser(nym)
+    if req.taa:
+        request.set_txn_author_agreement_acceptance(asdict(req.taa))
+
+    return TxnToSignResponse(
+        request=request.body,
+        signature_input=base64.urlsafe_b64encode(request.signature_input).decode(),
+    )
+
+
+class CredDefSubmitResponse(BaseModel):
+    """Credential Definition submit response."""
+
+    cred_def_id: str
+    indy_cred_def_id: str
+    registration_metadata: TxnResult
+    cred_def_metadata: TxnMetadata
+
+
+@router.post("/credential-definition/submit")
+async def post_credential_definition_submit(
+    req: SubmitRequest, ledgers: LedgersDep, store: StoreDep
+) -> CredDefSubmitResponse:
+    """Endorse and submit a txn."""
+    submitter = parse_did_indy(req.submitter)
+    pool = ledgers.get(submitter.namespace)
+    if not pool:
+        raise HTTPException(404, f"No pool for namespace {submitter.namespace}")
+
+    async with Ledger(pool, store) as ledger:
+        result = await ledger.endorse_and_submit(
+            req.request, submitter.nym, req.signature
+        )
+    result = TxnResult[CredDefTxnData].model_validate(result)
+
+    return CredDefSubmitResponse(
+        cred_def_id=make_cred_def_id(req.submitter, result.txn.data),
+        indy_cred_def_id=make_indy_cred_def_id_from_result(
+            submitter.nym, result.txn.data
+        ),
+        registration_metadata=result,
+        cred_def_metadata=result.txnMetadata,
+    )

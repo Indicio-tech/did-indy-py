@@ -2,9 +2,9 @@
 
 import asyncio
 import base64
-from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from io import StringIO
+import json
 import logging
 from pathlib import Path
 from typing import Mapping, Optional, Tuple, TypeVar, cast
@@ -14,10 +14,13 @@ import os
 
 from aries_askar import Key, Store
 from indy_vdr import Pool, VdrError, ledger, open_pool, Request
+from indy_vdr.bindings import resolve, dereference
 
 from driver_did_indy.cache import Cache
 from driver_did_indy.config import LocalLedgerGenesis, RemoteLedgerGenesis
+from driver_did_indy.models.txn import DereferenceResult, SchemaTxnDataData
 from driver_did_indy.utils import FetchError, fetch, get_nym_and_key
+from driver_did_indy.models.taa import TAARecord, TAAInfo, TaaAcceptance
 
 
 LOGGER = logging.getLogger(__name__)
@@ -294,29 +297,6 @@ class LedgerPool:
 sentinel = object()
 
 
-@dataclass
-class TAARecord:
-    text: str
-    version: str
-    digest: str
-
-
-@dataclass
-class TAAInfo:
-    aml: dict
-    taa: TAARecord | None
-    required: bool
-
-
-@dataclass
-class TaaAcceptance:
-    """TAA Acceptance data."""
-
-    taaDigest: str
-    mechanism: str
-    time: int
-
-
 T = TypeVar("T", bound="BaseLedger")
 
 
@@ -394,6 +374,38 @@ class BaseLedger:
             taa_record = TAARecord(taa_found["text"], taa_found["version"], digest)
 
         return TAAInfo(aml_found, taa_record, taa_required)
+
+    async def resolve(self, did: str) -> dict:
+        """Resolve a did:indy DID."""
+        if not self.pool.handle or not self.pool.handle.handle:
+            raise ClosedPoolError(
+                f"Cannot sign and submit request to closed pool '{self.pool.name}'"
+            )
+
+        try:
+            result = json.loads(await resolve(self.pool.handle.handle, did))  # pyright: ignore
+        except VdrError as err:
+            raise LedgerTransactionError("Ledger request error") from err
+        return result
+
+    async def dereference(self, did_url: str) -> dict:
+        """Dereference a DID URL to an object."""
+        if not self.pool.handle or not self.pool.handle.handle:
+            raise ClosedPoolError(
+                f"Cannot sign and submit request to closed pool '{self.pool.name}'"
+            )
+
+        try:
+            result = json.loads(await dereference(self.pool.handle.handle, did_url))
+        except VdrError as err:
+            raise LedgerTransactionError("Ledger request error") from err
+        return result
+
+    async def get_schema(self, schema_id: str) -> DereferenceResult[SchemaTxnDataData]:
+        """Retrieve schema by ID (DID URL)."""
+        result = await self.dereference(schema_id)
+        schema_result = DereferenceResult[SchemaTxnDataData].model_validate(result)
+        return schema_result
 
 
 class ReadOnlyLedger(BaseLedger):

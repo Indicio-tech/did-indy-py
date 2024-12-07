@@ -22,6 +22,9 @@ driver = [
     "pydantic-settings>=2.6.1",
     "rich>=13.9.4",
 ]
+demo = [
+    "anoncreds>=0.2.0",
+]
 
 [tool.pdm.dev-dependencies]
 dev = [
@@ -41,6 +44,4 @@ build-backend = "pdm.backend"
 
 [tool.pdm]
 distribution = true
-
-[tool.pdm.build]
 
