@@ -108,15 +108,7 @@ class HTTPClient:
     async def _handle_response(
         self,
         resp: Response,
-        data: bytes | None = None,
-        json: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any]:
-        LOGGER.info("%s %s", resp.request.method, resp.request.url.path)
-        if resp.request.url.params:
-            LOGGER.debug("Query: %s", resp.request.url)
-        if data or json:
-            LOGGER.debug("%s", data or json)
-
         if (
             resp.status_code >= 200
             and resp.status_code < 300
@@ -145,10 +137,16 @@ class HTTPClient:
         response: Type[T] | None = None,
     ) -> T | Mapping[str, Any]:
         """Make an HTTP request."""
-        async with AsyncClient(base_url=self.base_url, headers=self.headers) as session:
-            headers = dict(headers) if headers else {}
-            headers.update(self.headers)
+        headers = dict(headers) if headers else {}
+        headers.update(self.headers)
 
+        LOGGER.info("%s %s", method, url)
+        if params:
+            LOGGER.debug("Query: %s", params)
+        if data or json:
+            LOGGER.debug("%s", data or json)
+
+        async with AsyncClient(base_url=self.base_url, headers=self.headers) as session:
             if method == "GET" or method == "DELETE":
                 resp = await session.request(
                     method, url, params=params, headers=headers
@@ -164,7 +162,7 @@ class HTTPClient:
                 resp = await session.request(
                     method, url, content=data, json=json_, params=params
                 )
-                body = await self._handle_response(resp, data=data, json=json_)
+                body = await self._handle_response(resp)
                 value = _deserialize(body, response)
             else:
                 raise ValueError(f"Unsupported method {method}")

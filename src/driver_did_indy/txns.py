@@ -224,8 +224,6 @@ async def post_schema_submit(
 class CredDefRequest(BaseModel):
     """Credential Definition create request."""
 
-    issuer_id: str
-    schema_id: str
     cred_def: CredDef | str
     taa: TaaAcceptance | None = None
 
@@ -250,7 +248,10 @@ async def post_credential_definition(
     req: CredDefRequest, ledgers: LedgersDep, store: StoreDep
 ) -> TxnToSignResponse:
     """Create a schema and return a txn for the client to sign and later submit."""
-    submitter = parse_did_indy(req.issuer_id)
+    if isinstance(req.cred_def, str):
+        req.cred_def = CredDef.model_validate_json(req.cred_def)
+
+    submitter = parse_did_indy(req.cred_def.issuer_id)
     try:
         nym, _ = await get_nym_and_key(store, submitter.namespace)
     except NymNotFoundError as error:
@@ -264,12 +265,9 @@ async def post_credential_definition(
 
     async with Ledger(pool, store) as ledger:
         try:
-            schema_deref = await ledger.get_schema(req.schema_id)
+            schema_deref = await ledger.get_schema(req.cred_def.schema_id)
         except LedgerTransactionError as error:
             raise HTTPException(400, f"Cannot retrieve schema: {error}") from error
-
-    if isinstance(req.cred_def, str):
-        req.cred_def = CredDef.model_validate_json(req.cred_def)
 
     schema_seq_no = schema_deref.contentMetadata.nodeResponse.result.seqNo
     cred_def_id = make_indy_cred_def_id(submitter.nym, req.cred_def, schema_seq_no)

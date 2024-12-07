@@ -76,9 +76,7 @@ async def main():
         tag="test",
         signature_type="CL",
     )
-    result = await client.create_cred_def(
-        did, result.schema_id, cred_def.to_json(), taa=taa
-    )
+    result = await client.create_cred_def(cred_def.to_json(), taa=taa)
     sig = nym.key.sign_message(result.get_signature_input_bytes())
     result = await client.submit_cred_def(did, result.request, sig)
 

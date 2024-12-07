@@ -206,8 +206,6 @@ class IndyClient(HTTPClient):
 
     async def create_cred_def(
         self,
-        issuer_id: str,
-        schema_id: str,
         cred_def: dict | str,
         taa: TaaAcceptance | None = None,
     ) -> TxnToSignResponse:
@@ -215,8 +213,6 @@ class IndyClient(HTTPClient):
         result = await self.post(
             url="/txn/credential-definition",
             json={
-                "issuer_id": issuer_id,
-                "schema_id": schema_id,
                 "cred_def": cred_def,
                 "taa": asdict(taa) if taa else None,
             },
