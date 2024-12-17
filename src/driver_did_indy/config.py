@@ -10,10 +10,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Config(BaseSettings):
     """Driver configuration."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="DID_INDY_")
+    model_config = SettingsConfigDict(env_file=".env")
 
     passphrase: str
-    ledger_config: str = "ledgers.toml"
+    ledger_config: str = "/run/secrets/ledgers.toml"
 
 
 class LedgerConfig(BaseModel):

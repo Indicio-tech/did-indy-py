@@ -5,8 +5,8 @@ from fastapi import FastAPI
 from driver_did_indy.depends import lifespan
 
 from .webhooks import webhooks
-from . import txns
-from . import namespaces
+from .api import txns
+from .api import namespaces
 
 LOG_LEVEL = getenv("LOG_LEVEL", "DEBUG")
 logging.config.dictConfig(
