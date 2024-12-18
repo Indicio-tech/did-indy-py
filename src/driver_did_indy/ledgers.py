@@ -19,7 +19,7 @@ from indy_vdr.bindings import resolve, dereference
 from driver_did_indy.cache import Cache
 from driver_did_indy.config import LocalLedgerGenesis, RemoteLedgerGenesis
 from driver_did_indy.models.txn import DereferenceResult, SchemaTxnDataData
-from driver_did_indy.utils import FetchError, fetch, get_nym_and_key
+from driver_did_indy.utils import FetchError, fetch
 from driver_did_indy.models.taa import TAARecord, TAAInfo, TaaAcceptance
 
 
@@ -412,6 +412,24 @@ class ReadOnlyLedger(BaseLedger):
     """Read Only Ledger interface."""
 
 
+class NymNotFoundError(Exception):
+    """Raised when no nym is found for ledger."""
+
+
+async def get_nym_and_key(store: Store, namespace: str) -> Tuple[str, Key]:
+    """Retrieve our nym and key for this ledger."""
+    async with store.session() as session:
+        entry = await session.fetch_key(namespace)
+    if not entry:
+        raise NymNotFoundError(f"No nym found for {namespace}")
+
+    key = cast(Key, entry.key)
+    tags = cast(dict, entry.tags)
+    nym = tags.get("nym")
+    assert nym, "Key was saved without a nym tag"
+    return nym, key
+
+
 class Ledger(BaseLedger):
     """Ledger interface."""
 
@@ -549,18 +567,13 @@ class Ledger(BaseLedger):
 
         return request_result
 
-    async def endorse_and_submit(
+    async def endorse(
         self,
         request: str | Request,
         submitter: str | None,
         submitter_signature: str | bytes | None,
-    ) -> dict:
-        """Endorse and submit a request."""
-
-        if not self.pool.handle:
-            raise ClosedPoolError(
-                f"Cannot sign and submit request to closed pool '{self.pool.name}'"
-            )
+    ) -> Request:
+        """Endorse and return a request."""
 
         if isinstance(request, str):
             request = ledger.build_custom_request(request)
@@ -579,6 +592,23 @@ class Ledger(BaseLedger):
                 raise BadLedgerRequestError("Submitter signature required")
 
             request.set_multi_signature(submitter, submitter_signature)
+
+        return request
+
+    async def endorse_and_submit(
+        self,
+        request: str | Request,
+        submitter: str | None,
+        submitter_signature: str | bytes | None,
+    ) -> dict:
+        """Endorse and submit a request."""
+
+        if not self.pool.handle:
+            raise ClosedPoolError(
+                f"Cannot sign and submit request to closed pool '{self.pool.name}'"
+            )
+
+        request = await self.endorse(request, submitter, submitter_signature)
 
         try:
             request_result = await self.pool.handle.submit_request(request)

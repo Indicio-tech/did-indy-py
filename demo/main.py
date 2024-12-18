@@ -12,10 +12,11 @@ from hashlib import sha256
 from anoncreds import CredentialDefinition, Schema
 from aries_askar import Key, KeyAlg
 from base58 import b58encode
-from did_indy_client import IndyClient
+from indy_vdr import ledger
+from did_indy_client.client import IndyClient
 
 
-DRIVER = getenv("DRIVER", "http://driver-did-indy")
+DRIVER = getenv("DRIVER", "http://driver")
 LOG_LEVEL = getenv("LOG_LEVEL", "info")
 
 
@@ -49,8 +50,8 @@ def logging_to_stdout():
     logging.getLogger("did_indy_client").setLevel(LOG_LEVEL.upper())
 
 
-async def main():
-    """Demo script main entrypoint."""
+async def thin():
+    """Demo a thin client."""
     logging_to_stdout()
 
     NAMESPACE = "indicio:test"
@@ -81,5 +82,54 @@ async def main():
     result = await client.submit_cred_def(did, result.request, sig)
 
 
+async def thick():
+    """Demo a thick client."""
+    logging_to_stdout()
+
+    NAMESPACE = "indicio:test"
+    client = IndyClient(DRIVER)
+    taa_info = await client.get_taa(NAMESPACE)
+    taa = await client.accept_taa(taa_info, "on_file")
+
+    nym = generate_nym()
+    result = await client.create_nym(NAMESPACE, nym.verkey, taa=taa)
+    did = result.did
+
+    schema = {
+        "ver": "1.0",
+        "id": f"{nym.nym2}:2:test:1.0",
+        "name": "test",
+        "version": "1.0",
+        "attrNames": ["firstname", "lastname"],
+        "seqNo": None,
+    }
+    request = ledger.build_schema_request(nym.nym1, schema)
+    sig = nym.key.sign_message(request.signature_input)
+    result = await client.endorse_schema(did, request.body, sig)
+
+    cred_def, private, proof = CredentialDefinition.create(
+        schema_id=f"{nym.nym2}:2:test:1.0",
+        schema=schema,
+        issuer_id=did,
+        tag="test",
+        signature_type="CL",
+    )
+    cred_def = {
+        "id": f"{nym.nym2}:3:CL:1000:default",
+        "schemaId": "1000",
+        "tag": "default",
+        "type": "CL",
+        "value": cred_def.to_dict(),
+        "ver": "1.0",
+    }
+    request = ledger.build_cred_def_request(nym.nym2, cred_def)
+    print(request.body)
+    return
+    result = await client.create_cred_def(cred_def.to_json(), taa=taa)
+    sig = nym.key.sign_message(result.get_signature_input_bytes())
+    result = await client.submit_cred_def(did, result.request, sig)
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    # asyncio.run(thin())
+    asyncio.run(thick())

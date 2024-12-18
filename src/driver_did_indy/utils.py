@@ -3,9 +3,7 @@
 import asyncio
 from dataclasses import dataclass
 from hashlib import sha256
-from typing import Tuple, cast
 
-from aries_askar import Key, Store
 from base58 import b58decode, b58encode
 from httpx import AsyncClient, HTTPStatusError, Response
 
@@ -161,21 +159,3 @@ def nym_from_verkey(verkey: str, version: int = 2) -> str:
     else:
         nym = b58encode(key[:16]).decode()
     return nym
-
-
-class NymNotFoundError(Exception):
-    """Raised when no nym is found for ledger."""
-
-
-async def get_nym_and_key(store: Store, namespace: str) -> Tuple[str, Key]:
-    """Retrieve our nym and key for this ledger."""
-    async with store.session() as session:
-        entry = await session.fetch_key(namespace)
-    if not entry:
-        raise NymNotFoundError(f"No nym found for {namespace}")
-
-    key = cast(Key, entry.key)
-    tags = cast(dict, entry.tags)
-    nym = tags.get("nym")
-    assert nym, "Key was saved without a nym tag"
-    return nym, key

@@ -4,23 +4,41 @@ from typing import List
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from driver_did_indy.depends import LedgersDep
-from driver_did_indy.ledgers import ReadOnlyLedger, TAAInfo
+from driver_did_indy.depends import LedgersDep, StoreDep
+from driver_did_indy.ledgers import ReadOnlyLedger, TAAInfo, get_nym_and_key
 
 
 router = APIRouter()
 
 
+class NamespaceInfo(BaseModel):
+    """Namespace info"""
+
+    namespace: str
+    nym: str
+    did: str
+
+
 class NamespaceList(BaseModel):
     """Namespace list."""
 
-    namespaces: List[str]
+    namespaces: List[NamespaceInfo]
 
 
-@router.get("/namespace")
-async def get_namespace(ledgers: LedgersDep) -> NamespaceList:
+@router.get("/info")
+async def get_info(ledgers: LedgersDep, store: StoreDep) -> NamespaceList:
     """Return loaded namespaces."""
-    return NamespaceList(namespaces=list(ledgers.ledgers.keys()))
+    results = []
+    for namespace in ledgers.ledgers.keys():
+        nym, _ = await get_nym_and_key(store, namespace)
+        results.append(
+            NamespaceInfo(
+                namespace=namespace,
+                nym=nym,
+                did=f"did:indy:{namespace}:{nym}",
+            )
+        )
+    return NamespaceList(namespaces=results)
 
 
 @router.get("/taa/{namespace}", tags=["taa"])

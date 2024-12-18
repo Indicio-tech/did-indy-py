@@ -1,3 +1,5 @@
+"""Transaction API."""
+
 import base64
 from dataclasses import asdict
 import json
@@ -14,7 +16,13 @@ from indy_vdr.ledger import (
 from pydantic import BaseModel, Field
 
 from driver_did_indy.depends import LedgersDep, StoreDep
-from driver_did_indy.ledgers import Ledger, LedgerTransactionError, TaaAcceptance
+from driver_did_indy.ledgers import (
+    Ledger,
+    LedgerTransactionError,
+    NymNotFoundError,
+    TaaAcceptance,
+    get_nym_and_key,
+)
 from driver_did_indy.models.anoncreds import CredDef, Schema
 from driver_did_indy.models.txn import (
     CredDefTxnData,
@@ -22,12 +30,7 @@ from driver_did_indy.models.txn import (
     TxnMetadata,
     TxnResult,
 )
-from driver_did_indy.utils import (
-    NymNotFoundError,
-    get_nym_and_key,
-    nym_from_verkey,
-    parse_did_indy,
-)
+from driver_did_indy.utils import nym_from_verkey, parse_did_indy
 
 router = APIRouter(prefix="/txn", tags=["txn"])
 
@@ -128,6 +131,28 @@ class TxnToSignResponse(BaseModel):
     signature_input: str
 
 
+class SubmitRequest(BaseModel):
+    """Txn Submit Request."""
+
+    submitter: str
+    request: str
+    signature: str
+
+
+class EndorseRequest(BaseModel):
+    """Endorse request."""
+
+    submitter: str
+    request: str
+    signature: str | None
+
+
+class EndorseResponse(BaseModel):
+    """Endorse response."""
+
+    request: str
+
+
 def make_indy_schema_id(nym: str, schema: Schema) -> str:
     """Derive the indy schema ID for a schema."""
     return f"{nym}:2:{schema.name}:{schema.version}"
@@ -173,14 +198,6 @@ async def post_schema(req: SchemaRequest, store: StoreDep) -> TxnToSignResponse:
     )
 
 
-class SubmitRequest(BaseModel):
-    """Txn Submit Request."""
-
-    submitter: str
-    request: str
-    signature: str
-
-
 class SchemaSubmitResponse(BaseModel):
     """Schema submit response."""
 
@@ -204,7 +221,6 @@ async def post_schema_submit(
         result = await ledger.endorse_and_submit(
             req.request, submitter.nym, req.signature
         )
-        print(result)
     result = TxnResult[SchemaTxnData].model_validate(result)
     schema = Schema(
         issuer_id=req.submitter,
@@ -219,6 +235,22 @@ async def post_schema_submit(
         registration_metadata=result,
         schema_metadata=result.txnMetadata,
     )
+
+
+@router.post("/schema/endorse")
+async def post_schema_endorse(
+    req: EndorseRequest, ledgers: LedgersDep, store: StoreDep
+) -> EndorseResponse:
+    """Endorse a schema."""
+    submitter = parse_did_indy(req.submitter)
+    pool = ledgers.get(submitter.namespace)
+    if not pool:
+        raise HTTPException(404, f"No pool for namespace {submitter.namespace}")
+
+    async with Ledger(pool, store) as ledger:
+        request = await ledger.endorse(req.request, submitter.nym, req.signature)
+
+    return EndorseResponse(request=request.body)
 
 
 class CredDefRequest(BaseModel):
@@ -327,3 +359,20 @@ async def post_credential_definition_submit(
         registration_metadata=result,
         cred_def_metadata=result.txnMetadata,
     )
+
+
+@router.post("/credential-definition/endorse")
+async def post_credential_definition_endorse(
+    req: SubmitRequest, ledgers: LedgersDep, store: StoreDep
+) -> EndorseResponse:
+    """Endorse a Credential Definition transaction request."""
+    submitter = parse_did_indy(req.submitter)
+    pool = ledgers.get(submitter.namespace)
+
+    if not pool:
+        raise HTTPException(404, f"No pool for namespace {submitter.namespace}")
+
+    async with Ledger(pool, store) as ledger:
+        request = await ledger.endorse(req.request, submitter.nym, req.signature)
+
+    return EndorseResponse(request=request.body)
