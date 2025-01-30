@@ -19,11 +19,11 @@ from did_indy_client.models import (
 LOGGER = logging.getLogger(__name__)
 
 
-class IndyClientError(Exception):
+class IndyDriverClientError(Exception):
     """Raised on errors in indy client."""
 
 
-class IndyClient(HTTPClient):
+class IndyDriverClient(HTTPClient):
     """Client to the did:indy driver."""
 
     async def get_namespaces(self) -> List[str]:
@@ -130,18 +130,13 @@ class IndyClient(HTTPClient):
         self,
         submitter: str,
         request: str,
-        signature: str | bytes | None,
     ) -> EndorseResponse:
         """Submit a signed txn."""
-        if isinstance(signature, bytes):
-            signature = urlsafe_b64encode(signature).decode()
-
         result = await self.post(
             url="/txn/schema/endorse",
             json={
                 "submitter": submitter,
                 "request": request,
-                "signature": signature,
             },
             response=EndorseResponse,
         )
@@ -187,18 +182,13 @@ class IndyClient(HTTPClient):
         self,
         submitter: str,
         request: str,
-        signature: str | bytes | None,
     ) -> EndorseResponse:
         """Submit a signed txn."""
-        if isinstance(signature, bytes):
-            signature = urlsafe_b64encode(signature).decode()
-
         result = await self.post(
             url="/txn/cred-def/endorse",
             json={
                 "submitter": submitter,
                 "request": request,
-                "signature": signature,
             },
             response=EndorseResponse,
         )

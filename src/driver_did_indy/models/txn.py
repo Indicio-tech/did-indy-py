@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Any, Dict, Generic, List, Literal, TypeVar
 
 from pydantic import BaseModel, Field
@@ -123,3 +124,9 @@ class DereferenceResult(BaseModel, Generic[TxnData]):
     dereferencingMetadata: Any
     contentStream: TxnData
     contentMetadata: DerefContentMetadata
+
+
+@dataclass
+class Endorsement:
+    nym: str
+    signature: bytes

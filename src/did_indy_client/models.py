@@ -72,7 +72,12 @@ class TxnToSignResponse:
 class EndorseResponse:
     """Response to an endorse request."""
 
-    request: str
+    nym: str
+    signature: str
+
+    def get_signature_bytes(self):
+        """Get signature as bytes."""
+        return urlsafe_b64decode(self.signature)
 
 
 @dataclass

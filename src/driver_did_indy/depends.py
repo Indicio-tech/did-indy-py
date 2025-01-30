@@ -111,7 +111,6 @@ async def init_ledger_pool(
 
     async with Ledger(pool, store) as ledger:
         info = await ledger.get_txn_author_agreement()
-        print(info.aml)
         if info.taa and info.required:
             markdown = Markdown(info.taa.text)
             console.print(

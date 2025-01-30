@@ -18,7 +18,7 @@ from indy_vdr.bindings import resolve, dereference
 
 from driver_did_indy.cache import Cache
 from driver_did_indy.config import LocalLedgerGenesis, RemoteLedgerGenesis
-from driver_did_indy.models.txn import DereferenceResult, SchemaTxnDataData
+from driver_did_indy.models.txn import DereferenceResult, Endorsement, SchemaTxnDataData
 from driver_did_indy.utils import FetchError, fetch
 from driver_did_indy.models.taa import TAARecord, TAAInfo, TaaAcceptance
 
@@ -570,11 +570,8 @@ class Ledger(BaseLedger):
     async def endorse(
         self,
         request: str | Request,
-        submitter: str | None,
-        submitter_signature: str | bytes | None,
-    ) -> Request:
+    ) -> Endorsement:
         """Endorse and return a request."""
-
         if isinstance(request, str):
             request = ledger.build_custom_request(request)
         elif not isinstance(request, Request):
@@ -582,18 +579,7 @@ class Ledger(BaseLedger):
 
         nym, key = await self.get_nym_and_key()
 
-        request.set_endorser(nym)
-        request.set_multi_signature(nym, key.sign_message(request.signature_input))
-
-        if submitter:
-            if isinstance(submitter_signature, str):
-                submitter_signature = base64.urlsafe_b64decode(submitter_signature)
-            elif submitter_signature is None:
-                raise BadLedgerRequestError("Submitter signature required")
-
-            request.set_multi_signature(submitter, submitter_signature)
-
-        return request
+        return Endorsement(nym, key.sign_message(request.signature_input))
 
     async def endorse_and_submit(
         self,
@@ -602,13 +588,27 @@ class Ledger(BaseLedger):
         submitter_signature: str | bytes | None,
     ) -> dict:
         """Endorse and submit a request."""
+        if isinstance(request, str):
+            request = ledger.build_custom_request(request)
+        elif not isinstance(request, Request):
+            raise BadLedgerRequestError("Expected str or Request")
 
         if not self.pool.handle:
             raise ClosedPoolError(
                 f"Cannot sign and submit request to closed pool '{self.pool.name}'"
             )
 
-        request = await self.endorse(request, submitter, submitter_signature)
+        endorsement = await self.endorse(request)
+        request.set_endorser(endorsement.nym)
+        request.set_multi_signature(endorsement.nym, endorsement.signature)
+
+        if submitter:
+            if isinstance(submitter_signature, str):
+                submitter_signature = base64.urlsafe_b64decode(submitter_signature)
+            elif submitter_signature is None:
+                raise BadLedgerRequestError("Submitter signature required")
+
+            request.set_multi_signature(submitter, submitter_signature)
 
         try:
             request_result = await self.pool.handle.submit_request(request)

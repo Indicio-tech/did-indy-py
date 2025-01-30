@@ -1,19 +1,23 @@
 """Demo script."""
 
-import sys
 import asyncio
-
 from dataclasses import dataclass
+from hashlib import sha256
 import logging
 from os import getenv
 from secrets import token_bytes
-from hashlib import sha256
+import sys
 
 from anoncreds import CredentialDefinition, Schema
 from aries_askar import Key, KeyAlg
 from base58 import b58encode
-from indy_vdr import ledger
-from did_indy_client.client import IndyClient
+
+from did_indy_client.client import IndyDriverClient
+from driver_did_indy.anoncreds import (
+    indy_cred_def_request,
+    indy_schema_request,
+    make_schema_id_from_schema,
+)
 
 
 DRIVER = getenv("DRIVER", "http://driver")
@@ -55,7 +59,7 @@ async def thin():
     logging_to_stdout()
 
     NAMESPACE = "indicio:test"
-    client = IndyClient(DRIVER)
+    client = IndyDriverClient(DRIVER)
     taa_info = await client.get_taa(NAMESPACE)
     taa = await client.accept_taa(taa_info, "on_file")
 
@@ -87,7 +91,7 @@ async def thick():
     logging_to_stdout()
 
     NAMESPACE = "indicio:test"
-    client = IndyClient(DRIVER)
+    client = IndyDriverClient(DRIVER)
     taa_info = await client.get_taa(NAMESPACE)
     taa = await client.accept_taa(taa_info, "on_file")
 
@@ -95,39 +99,33 @@ async def thick():
     result = await client.create_nym(NAMESPACE, nym.verkey, taa=taa)
     did = result.did
 
-    schema = {
-        "ver": "1.0",
-        "id": f"{nym.nym2}:2:test:1.0",
-        "name": "test",
-        "version": "1.0",
-        "attrNames": ["firstname", "lastname"],
-        "seqNo": None,
-    }
-    request = ledger.build_schema_request(nym.nym1, schema)
+    schema = Schema.create(
+        name="test",
+        version="1.0",
+        attr_names=["firstname", "lastname"],
+        issuer_id=did,
+    )
+    request = indy_schema_request(schema)
     sig = nym.key.sign_message(request.signature_input)
-    result = await client.endorse_schema(did, request.body, sig)
+    request.set_signature(sig)
 
+    endorsement = await client.endorse_schema(did, request.body)
+    request.set_endorser(endorsement.nym)
+    request.set_multi_signature(endorsement.nym, endorsement.get_signature_bytes())
+
+    schema_id = make_schema_id_from_schema(schema)
     cred_def, private, proof = CredentialDefinition.create(
-        schema_id=f"{nym.nym2}:2:test:1.0",
+        schema_id=schema_id,
         schema=schema,
         issuer_id=did,
         tag="test",
         signature_type="CL",
     )
-    cred_def = {
-        "id": f"{nym.nym2}:3:CL:1000:default",
-        "schemaId": "1000",
-        "tag": "default",
-        "type": "CL",
-        "value": cred_def.to_dict(),
-        "ver": "1.0",
-    }
-    request = ledger.build_cred_def_request(nym.nym2, cred_def)
-    print(request.body)
-    return
-    result = await client.create_cred_def(cred_def.to_json(), taa=taa)
-    sig = nym.key.sign_message(result.get_signature_input_bytes())
-    result = await client.submit_cred_def(did, result.request, sig)
+    request = indy_cred_def_request(1000, cred_def)
+    sig = nym.key.sign_message(request.signature_input)
+    endorsement = await client.endorse_schema(did, request.body)
+    request.set_endorser(endorsement.nym)
+    request.set_multi_signature(endorsement.nym, endorsement.get_signature_bytes())
 
 
 if __name__ == "__main__":

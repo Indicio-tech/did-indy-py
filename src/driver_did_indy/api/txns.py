@@ -144,13 +144,13 @@ class EndorseRequest(BaseModel):
 
     submitter: str
     request: str
-    signature: str | None
 
 
 class EndorseResponse(BaseModel):
     """Endorse response."""
 
-    request: str
+    nym: str
+    signature: str
 
 
 def make_indy_schema_id(nym: str, schema: Schema) -> str:
@@ -248,9 +248,12 @@ async def post_schema_endorse(
         raise HTTPException(404, f"No pool for namespace {submitter.namespace}")
 
     async with Ledger(pool, store) as ledger:
-        request = await ledger.endorse(req.request, submitter.nym, req.signature)
+        endorsement = await ledger.endorse(req.request)
 
-    return EndorseResponse(request=request.body)
+    return EndorseResponse(
+        nym=endorsement.nym,
+        signature=base64.urlsafe_b64encode(endorsement.signature).decode(),
+    )
 
 
 class CredDefRequest(BaseModel):
@@ -276,7 +279,7 @@ def make_cred_def_id(did: str, cred_def: CredDefTxnData) -> str:
 
 
 @router.post("/cred-def")
-async def post_credential_definition(
+async def post_cred_def(
     req: CredDefRequest, ledgers: LedgersDep, store: StoreDep
 ) -> TxnToSignResponse:
     """Create a schema and return a txn for the client to sign and later submit."""
@@ -336,7 +339,7 @@ class CredDefSubmitResponse(BaseModel):
 
 
 @router.post("/cred-def/submit")
-async def post_credential_definition_submit(
+async def post_cred_def_submit(
     req: SubmitRequest, ledgers: LedgersDep, store: StoreDep
 ) -> CredDefSubmitResponse:
     """Endorse and submit a txn."""
@@ -362,7 +365,7 @@ async def post_credential_definition_submit(
 
 
 @router.post("/cred-def/endorse")
-async def post_credential_definition_endorse(
+async def post_cred_def_endorse(
     req: SubmitRequest, ledgers: LedgersDep, store: StoreDep
 ) -> EndorseResponse:
     """Endorse a Credential Definition transaction request."""
@@ -373,6 +376,9 @@ async def post_credential_definition_endorse(
         raise HTTPException(404, f"No pool for namespace {submitter.namespace}")
 
     async with Ledger(pool, store) as ledger:
-        request = await ledger.endorse(req.request, submitter.nym, req.signature)
+        endorsement = await ledger.endorse(req.request)
 
-    return EndorseResponse(request=request.body)
+    return EndorseResponse(
+        nym=endorsement.nym,
+        signature=base64.urlsafe_b64encode(endorsement.signature).decode(),
+    )
