@@ -176,11 +176,25 @@ The driver endorses the transaction and submits it to the network and returns th
 
 The client should validate that the returned DID URL includes the client's submitter DID. The client may also choose to independently resolve the schema from the network to verify it was published.
 
-#### POST /txn/credential-definition
+#### POST /txn/schema/endorse
+
+Request endorsement of a signed schema request.
+
+If the client wishes to publish its own transactions, the client may use this endpoint to request endorsement of a schema transaction.
+
+Request Body:
+- `submitter` (string): the DID of the submitter.
+- `request` (string): the serialized transaction request.
+- `signature` (string; optional): the base64 encoded signature over the request.
+
+The driver endorses the transaction and returns the endorsed transaction:
+- `request` (string): the serialized signed transaction request.
+
+#### POST /txn/cred-def
 
 Prepare a new credential definition transaction.
 
-The credential definition transaction is prepared and returned to the client to prepare a signature. Once signed, the client submits the transaction to `POST /txn/credential-definition/submit`.
+The credential definition transaction is prepared and returned to the client to prepare a signature. Once signed, the client submits the transaction to `POST /txn/cred-def/submit`.
 
 Request Body:
 - `cred_def` (object): an object containing the AnonCreds credential definition:
@@ -198,11 +212,11 @@ The response is a `TxnToSignResponse` representing a transaction to be signed by
 
 The client should validate that the returned request and signature input agree with the original request submitted by the client.
 
-#### POST /txn/credential-definition/submit
+#### POST /txn/cred-def/submit
 
 Submit a signed credential definition transaction.
 
-After independently preparing a transaction request or after using the `POST /txn/credential-definition` endpoint, the client submits the credential definition transaction request to the driver to be endorsed and submitted to the network.
+After independently preparing a transaction request or after using the `POST /txn/cred-def` endpoint, the client submits the credential definition transaction request to the driver to be endorsed and submitted to the network.
 
 Request Body:
 - `submitter` (string): the `did:indy` DID of the submitter
@@ -220,85 +234,37 @@ The driver endorses the transaction and submits it to the network and returns th
 
 The client should validate that the returned DID URL includes the client's submitter DID. The client may also choose to independently resolve the credential definition from the network to verify it was published with the expected values.
 
-#### POST /txn/rev-reg-definition
+#### POST /txn/schema/endorse
+
+Request endorsement of a signed credential definition request.
+
+If the client wishes to publish its own transactions, the client may use this endpoint to request endorsement of a schema transaction.
+
+Request Body:
+- `submitter` (string): the DID of the submitter.
+- `request` (string): the serialized transaction request.
+- `signature` (string; optional): the base64 encoded signature over the request.
+
+The driver endorses the transaction and returns the prepared transaction request:
+- `request` (string): the serialized signed transaction request.
+
+#### POST /txn/rev-reg-def
 
 > TODO
 
-#### POST /txn/rev-reg-definition/submit
+#### POST /txn/rev-reg-def/submit
 
+> TODO
 
-Request endorsement of a transaction.
+#### POST /txn/rev-reg-def/endorse
 
-The request body for this endpoint is the transaction request to be endorsed. This object is defined by the Indy Network protocol. It is strongly recommended to use the Indy VDR library to prepare this object. A rough outline of the object is provided below but the outline is not exhaustive and details are not explored in this document.
+> TODO
 
-- `endorser` (string): the nym of the endorser
-- `identifier` (string): the nym of the author
-- `operation` (object): the txn type specific information
-- `taaAcceptance` (object): the prepared Transaction Author Agreement acceptance object
-- `signatures` (object): multi-sig object containing the key-value pairing of the author nym to the base58 encoded signature over the txn request.
+## Endorsement Responses Webhooks
 
-Example request for an attrib endorsement:
+On transaction submit operations, if the transaction is automatically endorsed, the driver will sign and submit the transaction and return a status code of `201 Created` along with the request bodies described above.
 
-```json
-{
-  "endorser": "As728S9715ppSToDurKnvT",
-  "identifier": "6arEcmUv2ZutDuEvHEtoac",
-  "operation": {
-    "dest": "6arEcmUv2ZutDuEvHEtoac",
-    "raw": "{\"endpoint\":\"http://agent:3000\"}",
-    "type": "100"
-  },
-  "protocolVersion": 2,
-  "reqId": 1727971484639858947,
-  "signatures": {
-    "6arEcmUv2ZutDuEvHEtoac": "3WFqkEyCkwQo1HnrFbWVetaW1"
-  },
-  "taaAcceptance": {
-    "mechanism": "on_file",
-    "taaDigest": "c965dd01fec099ea95babaea3031bc09905432d3d7f1519bc0b99971aece8592",
-    "time": 1726704000
-  }
-}
-```
-
-This request was generated with the following lines of python code:
-
-```python=
-import json
-from indy_vdr import ledger
-
-attrib = ledger.build_attrib_request(
-    submitter_did="6arEcmUv2ZutDuEvHEtoac",
-    target_did="6arEcmUv2ZutDuEvHEtoac",
-    raw=json.dumps({"endpoint": "http://agent:3000"}),
-    xhash=None,
-    enc=None,
-)
-accept = ledger.prepare_txn_author_agreement_acceptance(
-    None, None, "c965dd01fec099ea95babaea3031bc09905432d3d7f1519bc0b99971aece8592", "on_file", 1726704000
-)
-attrib.set_txn_author_agreement_acceptance(accept)
-attrib.set_endorser("As728S9715ppSToDurKnvT")
-attrib.set_multi_signature(
-    "6arEcmUv2ZutDuEvHEtoac",
-    b"<author signature>"
-)
-```
-
-Details in this script are mocked. This just gives the general formula for constructing this request.
-
-##### Responses
-
-If the transaction is automatically endorsed, the endorser will sign and submit the txn and return the following response with status code `201 Created`:
-
-```json
-{
-    "seqNo": 17991,
-    ...
- 
-```
-
-If the transaction is pending approval or rejection, the endorser will return the following response with status code `202 Accepted`:
+If the transaction must be manually endorsed, the driver will return the following response with status code `202 Accepted`:
 
 - `request_id` (string): an identifier (e.g. a UUID) for this request that will be used to later report the outcome. This value MAY be the `request_id` contained in the transaction endorsement request body but the endorser MAY choose to identify the request using another value.
 
@@ -315,75 +281,71 @@ Pragma: no-cache
 }
 ```
 
-### Txn Endorsement Webhook
+### Webhooks
 
-When transactions are not automatically endorsed (when a `202 Accepted` is received in response to a request), the Author must await updates about the transaction endorsement request status.
+#### Authentication
 
-The Endorser will make a `POST` request to the Author's `txn_webhook_url`, if provided at registration token generation. The request body will be a JWT signed by the keys of the Endorser's DID (EdDSA since Indy always uses Ed25519 for the verkey).
+When the driver communicates with the client via webhook, the driver will provide an `Authorization` Header with a Bearer JWT signed by a key identified in the driver's `jkws` or in its resolved `jwks_uri`.
+
+When transactions are not automatically endorsed (when a `202 Accepted` is received in response to a request), the client must await updates about the transaction endorsement request status.
+
+The driver will make a `POST` request to the client's `webhook_url`, if provided at registration token generation. The request will include an `Authorization` Header with a Bearer JWT signed by a key identified in the driver's `jwks` metadata or at the specified `jwks_uri`.
 
 The headers of the JWT will include:
 
-- `alg` (string): this will always be `EdDSA`
-- `typ` (string): this will always be `JWT`
-- `kid` (string): the kid of the key used to sign the JWT. The public key should be obtained from the JWKS endpoint of the endorser.
+- `alg` (string): this will always be `EdDSA`.
+- `typ` (string): this will always be `JWT`.
+- `kid` (string): the kid of the key used to sign the JWT.
 
-The payload of the JWT will match the payload of the `201 Created` response, with the addition of the following Claims:
+The payload of the JWT will contain the following claims:
 
-- `iss` (string): the nym of the endorser
-- `aud` (string): client_id of the author, as issued on registration
-- `iat` (number): unix timestamp of token generation
-- `request_id` (string): the request id reported on 202 Accepted response for the transaction in question.
-- `status` (string): endorsement status; one of `endorsed` or `rejected`
+- `iss` (string): the url of the driver.
+- `aud` (string): `client_id` of the client, as issued on registration (described below).
+- `iat` (number): unix timestamp of token generation.
+- `event` (string): the type of event being reported to the webhook; one of `challenge`, `endorsed`, or `rejected`.
+- `request_id` (string): the request id reported on `202 Accepted` response for the transaction in question.
 
-The omission of any of these fields should result in a 400 Bad Request error and the Author should reject the webhook as invalid.
+The omission of any of these fields or failure to validate against the following rules should result in a 400 Bad Request error and the client should reject the webhook as invalid.
 
-If `iss` does not match the endorser's nym, according to the endorser info endpoint, the author should reject the webhook as invalid and return 400.
+Validation Rules:
+- `iss` MUST match the driver issuer metadata, as reported in the driver info endpoint.
+- `aud` MUST match the client's client_id as issued on registration.
+- `iat` MUST NOT be in the future (give or take some amount of leeway).
+- `request_id` MUST correspond to a request the client previously made.
+- `event` MUST be one of `challenge`, `endorsed`, or `rejected`.
 
-If `aud` does not match the author's client_id as issued on registration, the author should reject the webhook as invalid and return 400.
+The Request Body will contain:
+- `request_id` (string): the request id reported on `202 Accepted` response for the transaction in question.
+- `event` (string): the type of event being reported to the webhook; one of `challenge`, `endorsed`, or `rejected`.
 
-If `iat` is in the future (give or take some amount of leeway), the author should reject the webhook as invalid and return 400.
+The remaining parameters are dictated by the event type. For `endorsed`:
+- `txn_type` (string): the type of transaction that was published; one of `nym`, `schema`, `cred-def`, `rev-reg-def`, or `rev-reg-entry`
+- `response` (object): an object matching the response on `201 Created` for the given transaction type.
 
-Example webhook request body:
+For `rejected`:
+- `txn_type` (string): the type of transaction that was published; one of `nym`, `schema`, `cred-def`, `rev-reg-def`, or `rev-reg-entry`
 
-```
-POST <txn_webhook_url path> HTTP/1.1
-Host: <txn_webhook_url domain>
-Content-Type: application/jwt
+For `challenge`:
+- `secret` (string): the secret to be presented to the `POST /webhook/challenge` endpoint
 
-eyJhbGciOiJFZERTQSIsImtpZCI6IkFzNzI4Uzk3MTVwcFNUb0R1cktudlQ0djZSYjdFb3FKQ0JFWXBoNnBERkE3IiwidHlwIjoiSldUIn0.eyJyZXF1ZXN0X2lkIjoiMjA1MzlkNjItYjE3OC00MDYyLTkxNjAtMTdkZGFmNTNhMzE3Iiwic3RhdHVzIjoiZW5kb3JzZWQiLCJzZXFObyI6MTc5OTEsImlzcyI6IkFzNzI4Uzk3MTVwcFNUb0R1cktudlQiLCJhdWQiOiI8Y2xpZW50X2lkPiIsImlhdCI6MTcyNzk5Nzk0MX0.dtDi3yRVF5-0lv_tPBprkXPTsNDUquDhsxGNlirhSaijWIGxZGXZtkf_0bT49I2Lb1KydO8YpSmEr_SeSKXnAA
-```
+### Webhook Challenge
 
-Decoded JWT:
-```json
-{
-  "alg": "EdDSA",
-  "kid": "As728S9715ppSToDurKnvT4v6Rb7EoqJCBEYph6pDFA7",
-  "typ": "JWT"
-}
-.
-{
-  "request_id": "20539d62-b178-4062-9160-17ddaf53a317",
-  "status": "endorsed",
-  "seqNo": 17991,
-  "iss": "As728S9715ppSToDurKnvT",
-  "aud": "<client_id>",
-  "iat": 1727997941
-}
-.
-dtDi3yRVF5-0lv_tPBprkXPTsNDUquDhsxGNlirhSaijWIGxZGXZtkf_0bT49I2Lb1KydO8YpSmEr_SeSKXnAA
+When a client is dynamically registered, a `challenge` webhook is posted to the specified webhook URL. This ensures that the client is in control of the URL.
 
-```
+The expected flow of the challenge is:
+1. Client registers, providing the webhook URL for the first time, or updates the webhook URL
+2. The driver posts a challenge webhook to the client's webhook URL
 
-## Author Registration
+## Client Registration
 
-Author registration is achieved by the following steps:
+Client registration is achieved by the following steps:
 1. The Endorser generates a registration token
 2. The token is delivered to the author (out-of-band)
 3. The Author makes a request to the registration endpoint with the registration token
 
-### Endorser Metadata
+### Driver Metadata
 
-The Endorser publishes metadata about the service using the endpoint defined by [OAuth 2.0 Authorization Server Metadata][asmeta], `/.well-known/oauth-authorization-server`.
+The driver publishes metadata about the service using the endpoint defined by [OAuth 2.0 Authorization Server Metadata][asmeta], `/.well-known/oauth-authorization-server`.
 
 Example response:
 
