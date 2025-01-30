@@ -30,7 +30,7 @@ from driver_did_indy.models.txn import (
     TxnMetadata,
     TxnResult,
 )
-from driver_did_indy.utils import nym_from_verkey, parse_did_indy
+from driver_did_indy.did import nym_from_verkey, parse_did_indy
 
 router = APIRouter(prefix="/txn", tags=["txn"])
 
