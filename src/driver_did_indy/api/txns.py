@@ -275,7 +275,7 @@ def make_cred_def_id(did: str, cred_def: CredDefTxnData) -> str:
     return f"{did}/anoncreds/v0/CLAIM_DEF/{cred_def.ref}/{cred_def.tag}"
 
 
-@router.post("/credential-definition")
+@router.post("/cred-def")
 async def post_credential_definition(
     req: CredDefRequest, ledgers: LedgersDep, store: StoreDep
 ) -> TxnToSignResponse:
@@ -335,7 +335,7 @@ class CredDefSubmitResponse(BaseModel):
     cred_def_metadata: TxnMetadata
 
 
-@router.post("/credential-definition/submit")
+@router.post("/cred-def/submit")
 async def post_credential_definition_submit(
     req: SubmitRequest, ledgers: LedgersDep, store: StoreDep
 ) -> CredDefSubmitResponse:
@@ -361,7 +361,7 @@ async def post_credential_definition_submit(
     )
 
 
-@router.post("/credential-definition/endorse")
+@router.post("/cred-def/endorse")
 async def post_credential_definition_endorse(
     req: SubmitRequest, ledgers: LedgersDep, store: StoreDep
 ) -> EndorseResponse:

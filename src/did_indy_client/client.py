@@ -154,7 +154,7 @@ class IndyClient(HTTPClient):
     ) -> TxnToSignResponse:
         """Create a cred def."""
         result = await self.post(
-            url="/txn/credential-definition",
+            url="/txn/cred-def",
             json={
                 "cred_def": cred_def,
                 "taa": asdict(taa) if taa else None,
@@ -174,7 +174,7 @@ class IndyClient(HTTPClient):
             signature = urlsafe_b64encode(signature).decode()
 
         result = await self.post(
-            url="/txn/credential-definition/submit",
+            url="/txn/cred-def/submit",
             json={
                 "submitter": submitter,
                 "request": request,
@@ -194,7 +194,7 @@ class IndyClient(HTTPClient):
             signature = urlsafe_b64encode(signature).decode()
 
         result = await self.post(
-            url="/txn/credential-definition/endorse",
+            url="/txn/cred-def/endorse",
             json={
                 "submitter": submitter,
                 "request": request,

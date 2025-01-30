@@ -4,7 +4,7 @@ from base64 import urlsafe_b64decode
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping
 
-from did_indy_client.http_client import Serde
+from did_indy_client.http import Serde
 
 
 @dataclass
