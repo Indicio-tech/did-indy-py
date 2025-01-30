@@ -1,5 +1,5 @@
 services:
-  driver-did-indy:
+  driver:
     platform: linux/amd64
     image: driver-did-indy
     build:
@@ -28,9 +28,9 @@ services:
       - "./main.py:/usr/src/app/main.py:z"
     command: ["python", "main.py"]
     environment:
-      DRIVER: http://driver-did-indy
+      DRIVER: http://driver
     depends_on:
-      driver-did-indy:
+      driver:
         condition: service_healthy
 
 secrets:
