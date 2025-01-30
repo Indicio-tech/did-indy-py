@@ -7,6 +7,10 @@ from indy_vdr import Request
 from indy_vdr import ledger
 
 from driver_did_indy.did import parse_did_indy
+from driver_did_indy.models.anoncreds import (
+    Schema as SchemaModel,
+    CredDef as CredDefModel,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -45,12 +49,13 @@ def make_indy_schema_id_from_schema(schema: Schema | dict):
 
 
 def indy_schema_request(
-    schema: Schema | dict,
+    schema: SchemaModel | Schema | dict,
 ) -> Request:
     """Create a schema request."""
     if isinstance(schema, Schema):
         schema = schema.to_dict()
-    print(schema)
+    elif isinstance(schema, SchemaModel):
+        schema = schema.model_dump(by_alias=True)
 
     submitter = schema["issuerId"]
     if submitter.startswith("did:indy:"):
@@ -81,11 +86,13 @@ def make_cred_def_id(did: str, ref: str, tag: str) -> str:
 
 def indy_cred_def_request(
     schema_seq_no: int,
-    cred_def: CredentialDefinition | dict,
+    cred_def: CredDefModel | CredentialDefinition | dict,
 ) -> Request:
     """Create a cred def request."""
     if isinstance(cred_def, CredentialDefinition):
         cred_def = cred_def.to_dict()
+    elif isinstance(cred_def, CredDefModel):
+        cred_def = cred_def.model_dump(by_alias=True)
 
     submitter = cred_def["issuerId"]
     if submitter.startswith("did:indy:"):

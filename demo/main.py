@@ -106,11 +106,14 @@ async def thick():
         issuer_id=did,
     )
     request = indy_schema_request(schema)
-    sig = nym.key.sign_message(request.signature_input)
-    request.set_signature(sig)
+    if taa:
+        request.set_txn_author_agreement_acceptance(taa.for_request())
 
     endorsement = await client.endorse_schema(did, request.body)
     request.set_endorser(endorsement.nym)
+
+    sig = nym.key.sign_message(request.signature_input)
+    request.set_signature(sig)
     request.set_multi_signature(endorsement.nym, endorsement.get_signature_bytes())
 
     schema_id = make_schema_id_from_schema(schema)
@@ -122,12 +125,17 @@ async def thick():
         signature_type="CL",
     )
     request = indy_cred_def_request(1000, cred_def)
-    sig = nym.key.sign_message(request.signature_input)
+    if taa:
+        request.set_txn_author_agreement_acceptance(taa.for_request())
+
     endorsement = await client.endorse_schema(did, request.body)
     request.set_endorser(endorsement.nym)
+
+    sig = nym.key.sign_message(request.signature_input)
+    request.set_signature(sig)
     request.set_multi_signature(endorsement.nym, endorsement.get_signature_bytes())
 
 
 if __name__ == "__main__":
-    # asyncio.run(thin())
+    asyncio.run(thin())
     asyncio.run(thick())

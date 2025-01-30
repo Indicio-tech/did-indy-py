@@ -42,6 +42,10 @@ class TaaAcceptance:
     mechanism: str
     time: int
 
+    def for_request(self):
+        """Return TAA Acceptance for use in request."""
+        return asdict(self)
+
 
 @dataclass
 class CreateNymResult:

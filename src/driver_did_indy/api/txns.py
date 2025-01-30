@@ -9,12 +9,11 @@ from fastapi import APIRouter, HTTPException
 from indy_vdr import VdrError
 from indy_vdr.error import VdrErrorCode
 from indy_vdr.ledger import (
-    build_cred_def_request,
     build_nym_request,
-    build_schema_request,
 )
 from pydantic import BaseModel, Field
 
+from driver_did_indy.anoncreds import indy_cred_def_request, indy_schema_request
 from driver_did_indy.depends import LedgersDep, StoreDep
 from driver_did_indy.ledgers import (
     Ledger,
@@ -178,16 +177,7 @@ async def post_schema(req: SchemaRequest, store: StoreDep) -> TxnToSignResponse:
             404, f"No nym found for namespace {submitter.namespace}"
         ) from error
 
-    schema_id = make_indy_schema_id(submitter.nym, schema)
-    indy_schema = {
-        "ver": "1.0",
-        "id": schema_id,
-        "name": schema.name,
-        "version": schema.version,
-        "attrNames": schema.attr_names,
-        "seqNo": None,
-    }
-    request = build_schema_request(submitter_did=submitter.nym, schema=indy_schema)
+    request = indy_schema_request(schema)
     request.set_endorser(nym)
     if req.taa:
         request.set_txn_author_agreement_acceptance(asdict(req.taa))
@@ -247,6 +237,8 @@ async def post_schema_endorse(
     if not pool:
         raise HTTPException(404, f"No pool for namespace {submitter.namespace}")
 
+    # TODO Make sure it's a schema
+
     async with Ledger(pool, store) as ledger:
         endorsement = await ledger.endorse(req.request)
 
@@ -305,20 +297,7 @@ async def post_cred_def(
             raise HTTPException(400, f"Cannot retrieve schema: {error}") from error
 
     schema_seq_no = schema_deref.contentMetadata.nodeResponse.result.seqNo
-    cred_def_id = make_indy_cred_def_id(submitter.nym, req.cred_def, schema_seq_no)
-
-    indy_cred_def = {
-        "id": cred_def_id,
-        "schemaId": str(schema_seq_no),
-        "tag": req.cred_def.tag,
-        "type": req.cred_def.type,
-        "value": req.cred_def.value,
-        "ver": "1.0",
-    }
-
-    request = build_cred_def_request(
-        submitter_did=submitter.nym, cred_def=indy_cred_def
-    )
+    request = indy_cred_def_request(schema_seq_no, req.cred_def)
     request.set_endorser(nym)
     if req.taa:
         request.set_txn_author_agreement_acceptance(asdict(req.taa))
@@ -374,6 +353,8 @@ async def post_cred_def_endorse(
 
     if not pool:
         raise HTTPException(404, f"No pool for namespace {submitter.namespace}")
+
+    # TODO Make sure it's a Cred Def
 
     async with Ledger(pool, store) as ledger:
         endorsement = await ledger.endorse(req.request)

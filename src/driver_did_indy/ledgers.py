@@ -579,6 +579,7 @@ class Ledger(BaseLedger):
 
         nym, key = await self.get_nym_and_key()
 
+        request.set_endorser(nym)
         return Endorsement(nym, key.sign_message(request.signature_input))
 
     async def endorse_and_submit(
