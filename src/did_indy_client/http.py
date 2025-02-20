@@ -146,7 +146,7 @@ class HTTPClient:
         if data or json:
             LOGGER.debug("%s", data or json)
 
-        async with AsyncClient(base_url=self.base_url, headers=self.headers) as session:
+        async with AsyncClient(base_url=self.base_url, headers=headers) as session:
             if method == "GET" or method == "DELETE":
                 resp = await session.request(
                     method, url, params=params, headers=headers
