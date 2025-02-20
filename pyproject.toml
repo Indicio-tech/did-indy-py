@@ -23,6 +23,9 @@ driver = [
     "rich>=13.9.4",
     "pyjwt>=2.10.1",
 ]
+client = [
+    "pydantic>=2.9.2",
+]
 demo = [
     "anoncreds>=0.2.0",
 ]

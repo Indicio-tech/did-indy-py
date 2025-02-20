@@ -1,18 +1,16 @@
 """Client to did:indy driver."""
 
 from base64 import urlsafe_b64encode
-from dataclasses import asdict
 from datetime import date, datetime, timezone
 import logging
 from typing import Any, List, Optional
 
+from did_indy.models.taa import TAAInfo, TaaAcceptance
 from did_indy_client.http import HTTPClient
-from did_indy_client.models import (
-    CreateNymResult,
+from driver_did_indy.api.txns import (
     EndorseResponse,
+    NymResponse,
     SchemaSubmitResponse,
-    TAAInfo,
-    TaaAcceptance,
     TxnToSignResponse,
 )
 
@@ -72,7 +70,7 @@ class IndyDriverClient(HTTPClient):
         diddoc_content: str | None = None,
         version: int | None = None,
         taa: TaaAcceptance | None = None,
-    ) -> CreateNymResult:
+    ) -> NymResponse:
         """Create a new nym on the ledger."""
         result = await self.post(
             url="/txn/nym",
@@ -83,9 +81,9 @@ class IndyDriverClient(HTTPClient):
                 "role": role,
                 "diddocContent": diddoc_content,
                 "version": version,
-                "taa": asdict(taa) if taa else None,
+                "taa": taa.for_request() if taa else None,
             },
-            response=CreateNymResult,
+            response=NymResponse,
         )
         return result
 
@@ -99,7 +97,7 @@ class IndyDriverClient(HTTPClient):
             url="/txn/schema",
             json={
                 "schema": schema,
-                "taa": asdict(taa) if taa else None,
+                "taa": taa.for_request() if taa else None,
             },
             response=TxnToSignResponse,
         )
@@ -152,7 +150,7 @@ class IndyDriverClient(HTTPClient):
             url="/txn/cred-def",
             json={
                 "cred_def": cred_def,
-                "taa": asdict(taa) if taa else None,
+                "taa": taa.for_request() if taa else None,
             },
             response=TxnToSignResponse,
         )

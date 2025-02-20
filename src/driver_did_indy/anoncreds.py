@@ -6,8 +6,8 @@ from anoncreds import CredentialDefinition, Schema
 from indy_vdr import Request
 from indy_vdr import ledger
 
-from driver_did_indy.did import parse_did_indy
-from driver_did_indy.models.anoncreds import (
+from did_indy.did import parse_did_indy
+from did_indy.models.anoncreds import (
     Schema as SchemaModel,
     CredDef as CredDefModel,
 )

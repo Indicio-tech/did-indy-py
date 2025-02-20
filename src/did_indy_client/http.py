@@ -5,6 +5,7 @@ automatically deserializing responses into an object, etc.
 """
 
 import dataclasses
+from dataclasses import asdict, is_dataclass
 import logging
 from typing import (
     Any,
@@ -18,9 +19,9 @@ from typing import (
     overload,
     runtime_checkable,
 )
-from dataclasses import asdict, is_dataclass
 
 from httpx import AsyncClient, Response
+from pydantic import BaseModel
 
 
 LOGGER = logging.getLogger(__name__)
@@ -57,6 +58,8 @@ def _serialize(value: Serializable):
     """Serialize value."""
     if value is None:
         return None
+    if isinstance(value, BaseModel):
+        return value.model_dump(by_alias=True)
     if isinstance(value, Serde):
         return value.serialize()
     if isinstance(value, Mapping):
@@ -86,6 +89,8 @@ def _deserialize(value: Any, as_type: Type[T] | None = None) -> T | Any:
         return value
     if issubclass(as_type, Serde):
         return as_type.deserialize(value)
+    if issubclass(as_type, BaseModel):
+        return as_type.model_validate(value)
     if is_dataclass(as_type):
         return cast(T, as_type(**value))
     if issubclass(as_type, Mapping):

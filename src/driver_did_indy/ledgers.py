@@ -3,24 +3,24 @@
 import asyncio
 import base64
 from datetime import date, datetime, timezone
+import hashlib
 from io import StringIO
 import json
 import logging
-from pathlib import Path
-from typing import Mapping, Optional, Tuple, TypeVar, cast
-import tempfile
-import hashlib
 import os
+from pathlib import Path
+import tempfile
+from typing import Mapping, Optional, Tuple, TypeVar, cast
 
 from aries_askar import Key, Store
-from indy_vdr import Pool, VdrError, ledger, open_pool, Request
-from indy_vdr.bindings import resolve, dereference
+from indy_vdr import Pool, Request, VdrError, ledger, open_pool
+from indy_vdr.bindings import dereference, resolve
 
+from did_indy.models.taa import TAAInfo, TAARecord, TaaAcceptance
+from did_indy.models.txn import DereferenceResult, Endorsement, SchemaTxnDataData
 from driver_did_indy.cache import Cache
 from driver_did_indy.config import LocalLedgerGenesis, RemoteLedgerGenesis
-from driver_did_indy.models.txn import DereferenceResult, Endorsement, SchemaTxnDataData
 from driver_did_indy.utils import FetchError, fetch
-from driver_did_indy.models.taa import TAARecord, TAAInfo, TaaAcceptance
 
 
 LOGGER = logging.getLogger(__name__)
@@ -371,9 +371,11 @@ class BaseLedger:
         taa_record = None
         if taa_found:
             digest = self.taa_digest(taa_found["version"], taa_found["text"])
-            taa_record = TAARecord(taa_found["text"], taa_found["version"], digest)
+            taa_record = TAARecord(
+                text=taa_found["text"], version=taa_found["version"], digest=digest
+            )
 
-        return TAAInfo(aml_found, taa_record, taa_required)
+        return TAAInfo(aml=aml_found, taa=taa_record, required=taa_required)
 
     async def resolve(self, did: str) -> dict:
         """Resolve a did:indy DID."""

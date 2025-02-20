@@ -1,35 +1,27 @@
 """Transaction API."""
 
 import base64
-from dataclasses import asdict
 import json
 from typing import Any, Mapping
 
 from fastapi import APIRouter, HTTPException
 from indy_vdr import VdrError
 from indy_vdr.error import VdrErrorCode
-from indy_vdr.ledger import (
-    build_nym_request,
-)
+from indy_vdr.ledger import build_nym_request
 from pydantic import BaseModel, Field
 
+from did_indy.did import nym_from_verkey, parse_did_indy
+from did_indy.models.anoncreds import CredDef, Schema
+from did_indy.models.taa import TaaAcceptance
+from did_indy.models.txn import CredDefTxnData, SchemaTxnData, TxnMetadata, TxnResult
 from driver_did_indy.anoncreds import indy_cred_def_request, indy_schema_request
 from driver_did_indy.depends import LedgersDep, StoreDep
 from driver_did_indy.ledgers import (
     Ledger,
     LedgerTransactionError,
     NymNotFoundError,
-    TaaAcceptance,
     get_nym_and_key,
 )
-from driver_did_indy.models.anoncreds import CredDef, Schema
-from driver_did_indy.models.txn import (
-    CredDefTxnData,
-    SchemaTxnData,
-    TxnMetadata,
-    TxnResult,
-)
-from driver_did_indy.did import nym_from_verkey, parse_did_indy
 
 router = APIRouter(prefix="/txn", tags=["txn"])
 
@@ -129,6 +121,10 @@ class TxnToSignResponse(BaseModel):
     request: str
     signature_input: str
 
+    def get_signature_input_bytes(self):
+        """Get signature input as bytes."""
+        return base64.urlsafe_b64decode(self.signature_input)
+
 
 class SubmitRequest(BaseModel):
     """Txn Submit Request."""
@@ -150,6 +146,10 @@ class EndorseResponse(BaseModel):
 
     nym: str
     signature: str
+
+    def get_signature_bytes(self):
+        """Get signature as bytes."""
+        return base64.urlsafe_b64decode(self.signature)
 
 
 def make_indy_schema_id(nym: str, schema: Schema) -> str:
@@ -180,7 +180,7 @@ async def post_schema(req: SchemaRequest, store: StoreDep) -> TxnToSignResponse:
     request = indy_schema_request(schema)
     request.set_endorser(nym)
     if req.taa:
-        request.set_txn_author_agreement_acceptance(asdict(req.taa))
+        request.set_txn_author_agreement_acceptance(req.taa.for_request())
 
     return TxnToSignResponse(
         request=request.body,
@@ -300,7 +300,7 @@ async def post_cred_def(
     request = indy_cred_def_request(schema_seq_no, req.cred_def)
     request.set_endorser(nym)
     if req.taa:
-        request.set_txn_author_agreement_acceptance(asdict(req.taa))
+        request.set_txn_author_agreement_acceptance(req.taa.for_request())
 
     return TxnToSignResponse(
         request=request.body,
