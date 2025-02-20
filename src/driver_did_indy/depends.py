@@ -12,7 +12,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.table import Table
 
-from driver_did_indy.cache import Cache
+from driver_did_indy.cache import BasicCache, Cache
 from driver_did_indy.config import (
     Config,
     LedgersConfig,
@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
     config = Config()  # type: ignore
     ledgers_config = LedgersConfig.from_config_file(config.ledger_config)
 
-    cache = Cache()
+    cache = BasicCache()
 
     # TODO Most of this store setup needs to be done in a more resilient way
     store_path = Path("./temp.db")

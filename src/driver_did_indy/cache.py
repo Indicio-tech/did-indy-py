@@ -4,13 +4,35 @@ import asyncio
 import heapq
 import logging
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Protocol, Tuple
 
 
 LOGGER = logging.getLogger(__name__)
 
+DEFAULT_TTL = 600.0
 
-class Cache:
+
+class Cache(Protocol):
+    """Cache Protocol."""
+
+    async def set(self, keys: str | List[str], value: Any, ttl: float | None = None):
+        """Set a value with TTL."""
+        ...
+
+    async def get(self, key: str) -> Any:
+        """Get a value, expiring any stale keys."""
+        ...
+
+    async def clear(self, key: str):
+        """Clear a key."""
+        ...
+
+    async def flush(self):
+        """Remove all items from the cache."""
+        ...
+
+
+class BasicCache(Cache):
     """KV Cache with TTL expiry on access."""
 
     def __init__(self):
@@ -28,12 +50,15 @@ class Cache:
                 LOGGER.debug("Expiring key: %s", key)
                 self.cache.pop(key, None)
 
-    async def set(self, keys: str | List[str], value: Any, ttl: float):
+    async def set(self, keys: str | List[str], value: Any, ttl: float | None = None):
         """Set a value with TTL."""
         if isinstance(keys, list):
             pass
         else:
             keys = [keys]
+
+        if ttl is None:
+            ttl = DEFAULT_TTL
 
         async with self.lock:
             LOGGER.debug("Set: %s", keys)
@@ -56,17 +81,6 @@ class Cache:
             LOGGER.debug("Delete: %s", key)
             self.cache.pop(key, None)
 
-
-async def main():
-    """Example."""
-    cache = Cache()
-    await cache.set("key1", "value1", 5)  # key1 will expire in 5 seconds
-    await asyncio.sleep(1)
-    await cache.set("key2", "value2", 5)  # key2 will expire in 5 seconds
-    await asyncio.sleep(7)
-    print(await cache.get("key1"))  # Should print None as key1 has expired
-    print(await cache.get("key2"))  # Should print None as key2 has expired
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    async def flush(self):
+        """Remove all items from the cache."""
+        self.cache = {}
