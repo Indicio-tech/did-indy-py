@@ -2,55 +2,48 @@
 
 import base64
 import json
-from typing import Any, Mapping
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Security
 from indy_vdr import VdrError
 from indy_vdr.error import VdrErrorCode
 from indy_vdr.ledger import build_nym_request
-from pydantic import BaseModel, Field
 
 from did_indy.did import nym_from_verkey, parse_did_indy
 from did_indy.models.anoncreds import CredDef, Schema
-from did_indy.models.taa import TaaAcceptance
-from did_indy.models.txn import CredDefTxnData, SchemaTxnData, TxnMetadata, TxnResult
+from did_indy.models.txn import CredDefTxnData, SchemaTxnData, TxnResult
 from did_indy.anoncreds import indy_cred_def_request, indy_schema_request
+from driver_did_indy.auto_endorse import SCOPE_CRED_DEF, SCOPE_NYM_NEW, SCOPE_SCHEMA
 from driver_did_indy.depends import LedgersDep, StoreDep
 from did_indy.ledger import (
     Ledger,
     LedgerTransactionError,
 )
 from driver_did_indy.ledgers import NymNotFoundError, get_nym_and_key
+from driver_did_indy.security import Auth
 from driver_did_indy.taa import get_latest_txn_author_acceptance
+
+from .models import (
+    NymRequest,
+    NymResponse,
+    SchemaRequest,
+    CredDefRequest,
+    TxnToSignResponse,
+    SubmitRequest,
+    SchemaSubmitResponse,
+    CredDefSubmitResponse,
+    EndorseRequest,
+    EndorseResponse,
+)
 
 router = APIRouter(prefix="/txn", tags=["txn"])
 
 
-class NymRequest(BaseModel):
-    """Nym Request."""
-
-    namespace: str
-    verkey: str
-    nym: str | None = None
-    role: str | None = None
-    diddocContent: str | Mapping[str, Any] | None = None
-    version: int | None = None
-    taa: TaaAcceptance | None = None
-
-
-class NymResponse(BaseModel):
-    seqNo: int
-    nym: str
-    verkey: str
-    did: str
-    did_sov: str
-    role: str | None = None
-    diddocContent: Mapping[str, Any] | None = None
-
-
 @router.post("/nym")
 async def post_nym(
-    req: NymRequest, ledgers: LedgersDep, store: StoreDep
+    req: NymRequest,
+    ledgers: LedgersDep,
+    store: StoreDep,
+    _=Security(Auth.client, scopes=[SCOPE_NYM_NEW]),
 ) -> NymResponse:
     """Create a new nym."""
 
@@ -109,50 +102,6 @@ async def post_nym(
         )
 
 
-class SchemaRequest(BaseModel):
-    """Schema Create Request."""
-
-    schema_value: Schema | str = Field(alias="schema")
-    taa: TaaAcceptance | None = None
-
-
-class TxnToSignResponse(BaseModel):
-    """Schema Create Response."""
-
-    request: str
-    signature_input: str
-
-    def get_signature_input_bytes(self):
-        """Get signature input as bytes."""
-        return base64.urlsafe_b64decode(self.signature_input)
-
-
-class SubmitRequest(BaseModel):
-    """Txn Submit Request."""
-
-    submitter: str
-    request: str
-    signature: str
-
-
-class EndorseRequest(BaseModel):
-    """Endorse request."""
-
-    submitter: str
-    request: str
-
-
-class EndorseResponse(BaseModel):
-    """Endorse response."""
-
-    nym: str
-    signature: str
-
-    def get_signature_bytes(self):
-        """Get signature as bytes."""
-        return base64.urlsafe_b64decode(self.signature)
-
-
 def make_indy_schema_id(nym: str, schema: Schema) -> str:
     """Derive the indy schema ID for a schema."""
     return f"{nym}:2:{schema.name}:{schema.version}"
@@ -164,7 +113,11 @@ def make_schema_id(schema: Schema) -> str:
 
 
 @router.post("/schema")
-async def post_schema(req: SchemaRequest, store: StoreDep) -> TxnToSignResponse:
+async def post_schema(
+    req: SchemaRequest,
+    store: StoreDep,
+    _=Security(Auth.client, scopes=[SCOPE_SCHEMA]),
+) -> TxnToSignResponse:
     """Create a schema and return a txn for the client to sign and later submit."""
     schema = req.schema_value
     if isinstance(schema, str):
@@ -189,18 +142,12 @@ async def post_schema(req: SchemaRequest, store: StoreDep) -> TxnToSignResponse:
     )
 
 
-class SchemaSubmitResponse(BaseModel):
-    """Schema submit response."""
-
-    schema_id: str
-    indy_schema_id: str
-    registration_metadata: TxnResult
-    schema_metadata: TxnMetadata
-
-
 @router.post("/schema/submit")
 async def post_schema_submit(
-    req: SubmitRequest, ledgers: LedgersDep, store: StoreDep
+    req: SubmitRequest,
+    ledgers: LedgersDep,
+    store: StoreDep,
+    _=Security(Auth.client, scopes=[SCOPE_SCHEMA]),
 ) -> SchemaSubmitResponse:
     """Endorse and submit a txn."""
     submitter = parse_did_indy(req.submitter)
@@ -236,7 +183,10 @@ async def post_schema_submit(
 
 @router.post("/schema/endorse")
 async def post_schema_endorse(
-    req: EndorseRequest, ledgers: LedgersDep, store: StoreDep
+    req: EndorseRequest,
+    ledgers: LedgersDep,
+    store: StoreDep,
+    _=Security(Auth.client, scopes=[SCOPE_SCHEMA]),
 ) -> EndorseResponse:
     """Endorse a schema."""
     submitter = parse_did_indy(req.submitter)
@@ -253,13 +203,6 @@ async def post_schema_endorse(
         nym=endorsement.nym,
         signature=base64.urlsafe_b64encode(endorsement.signature).decode(),
     )
-
-
-class CredDefRequest(BaseModel):
-    """Credential Definition create request."""
-
-    cred_def: CredDef | str
-    taa: TaaAcceptance | None = None
 
 
 def make_indy_cred_def_id_from_result(nym: str, cred_def: CredDefTxnData) -> str:
@@ -279,7 +222,10 @@ def make_cred_def_id(did: str, cred_def: CredDefTxnData) -> str:
 
 @router.post("/cred-def")
 async def post_cred_def(
-    req: CredDefRequest, ledgers: LedgersDep, store: StoreDep
+    req: CredDefRequest,
+    ledgers: LedgersDep,
+    store: StoreDep,
+    _=Security(Auth.client, scopes=[SCOPE_CRED_DEF]),
 ) -> TxnToSignResponse:
     """Create a schema and return a txn for the client to sign and later submit."""
     if isinstance(req.cred_def, str):
@@ -315,18 +261,12 @@ async def post_cred_def(
     )
 
 
-class CredDefSubmitResponse(BaseModel):
-    """Credential Definition submit response."""
-
-    cred_def_id: str
-    indy_cred_def_id: str
-    registration_metadata: TxnResult
-    cred_def_metadata: TxnMetadata
-
-
 @router.post("/cred-def/submit")
 async def post_cred_def_submit(
-    req: SubmitRequest, ledgers: LedgersDep, store: StoreDep
+    req: SubmitRequest,
+    ledgers: LedgersDep,
+    store: StoreDep,
+    _=Security(Auth.client, scopes=[SCOPE_CRED_DEF]),
 ) -> CredDefSubmitResponse:
     """Endorse and submit a txn."""
     submitter = parse_did_indy(req.submitter)
@@ -358,7 +298,10 @@ async def post_cred_def_submit(
 
 @router.post("/cred-def/endorse")
 async def post_cred_def_endorse(
-    req: SubmitRequest, ledgers: LedgersDep, store: StoreDep
+    req: SubmitRequest,
+    ledgers: LedgersDep,
+    store: StoreDep,
+    _=Security(Auth.client, scopes=[SCOPE_CRED_DEF]),
 ) -> EndorseResponse:
     """Endorse a Credential Definition transaction request."""
     submitter = parse_did_indy(req.submitter)

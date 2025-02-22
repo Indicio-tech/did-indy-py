@@ -1,6 +1,7 @@
 """Driver configuration."""
 
 import logging
+from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,4 +18,8 @@ class Config(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env")
 
     passphrase: str
+    auth: Literal["insecure", "api-key", "client-tokens"]
     ledger_config: str | None = None
+    admin_api_key: str | None = None
+    client_api_key: str | None = None
+    client_token_secret: str | None = None

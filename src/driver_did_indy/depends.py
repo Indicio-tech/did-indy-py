@@ -156,3 +156,12 @@ async def derive_nym_from_seed(store: Store, seed: str, namespace: str):
     await store_nym_and_key(store, namespace, nym, key)
 
     return nym, verkey
+
+
+def get_config():
+    """Retrieve config."""
+
+    return Config()  # type: ignore
+
+
+ConfigDep = Annotated[Config, Depends(get_config)]

@@ -10,7 +10,26 @@ from fastapi.security import (
 import jwt
 from pydantic import BaseModel, ConfigDict
 
-from driver_did_indy.depends import StoreDep
+from driver_did_indy.auto_endorse import ClientAutoEndorseRules, derive_scopes
+from driver_did_indy.config import Config, ConfigError
+from driver_did_indy.depends import StoreDep, get_config
+
+
+class InsecureMode:
+    """No authentication mode.
+
+    This is for testing only; do not use this.
+    """
+
+    async def admin(
+        self,
+    ):
+        """Check validity of API Key for admin operations."""
+        return
+
+    async def client(self):
+        """Check validity of API Key for client operations."""
+        return
 
 
 class APIKey:
@@ -48,7 +67,6 @@ class ClientToken(BaseModel):
 
     jti: str
     client_id: str
-    scope: str
     nonce: str
 
 
@@ -93,19 +111,41 @@ class AdminAPIKeyClientToken:
 
         parsed = ClientToken.model_validate(payload)
 
-        scan = store.scan(
-            category="client",
-            tag_filter={
-                "client_id": parsed.client_id,
-                "jti": parsed.jti,
-            },
-            limit=1,
-        )
-        clients = await scan.fetch_all()
-        if not clients:
+        async with store.session() as session:
+            entry = await session.fetch(category="clients", name=parsed.client_id)
+            if not entry:
+                raise HTTPException(401)
+
+            jti = entry.value_json["jti"]
+            rules = ClientAutoEndorseRules.model_validate(entry.value_json["rules"])
+
+        if not jti == parsed.jti:
             raise HTTPException(403, "Revoked token")
 
-        scopes = parsed.scope.split(" ")
+        scopes = derive_scopes(rules)
         for scope in security_scopes.scopes:
             if scope not in scopes:
                 raise HTTPException(403, "Insufficient scope")
+
+
+def auth_provider(config: Config):
+    """Provide authentication mechanism based on config."""
+    if config.auth == "insecure":
+        return InsecureMode()
+    elif config.auth == "api-key":
+        if config.admin_api_key is None:
+            raise ConfigError("auth mode is api-key but admin_api_key is not set")
+        return APIKey(config.admin_api_key, config.client_api_key)
+    elif config.auth == "client-tokens":
+        if config.admin_api_key is None:
+            raise ConfigError("auth mode is client-tokens but admin_api_key is not set")
+        if config.client_token_secret is None:
+            raise ConfigError(
+                "auth mode is client-tokens but client_token_secret is not set"
+            )
+        return AdminAPIKeyClientToken(config.admin_api_key, config.client_token_secret)
+    else:
+        raise ConfigError(f"Invalid auth mode {config.auth}")
+
+
+Auth = auth_provider(get_config())
