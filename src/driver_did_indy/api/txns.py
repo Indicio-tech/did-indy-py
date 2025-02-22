@@ -16,12 +16,12 @@ from did_indy.models.taa import TaaAcceptance
 from did_indy.models.txn import CredDefTxnData, SchemaTxnData, TxnMetadata, TxnResult
 from driver_did_indy.anoncreds import indy_cred_def_request, indy_schema_request
 from driver_did_indy.depends import LedgersDep, StoreDep
-from driver_did_indy.ledgers import (
+from did_indy.ledger import (
     Ledger,
     LedgerTransactionError,
-    NymNotFoundError,
-    get_nym_and_key,
 )
+from driver_did_indy.ledgers import NymNotFoundError, get_nym_and_key
+from driver_did_indy.taa import get_latest_txn_author_acceptance
 
 router = APIRouter(prefix="/txn", tags=["txn"])
 
@@ -58,8 +58,9 @@ async def post_nym(
     if not pool:
         raise HTTPException(404, detail=f"Namespace {req.namespace} is unknown")
 
-    async with Ledger(pool, store) as ledger:
-        nym, key = await ledger.get_nym_and_key()
+    nym, key = await get_nym_and_key(store, req.namespace)
+    taa = await get_latest_txn_author_acceptance(pool, store)
+    async with Ledger(pool) as ledger:
         try:
             await ledger.validate_taa_acceptance(req.taa)
         except LedgerTransactionError as error:
@@ -90,7 +91,7 @@ async def post_nym(
             version=version,
         )
         try:
-            result = await ledger.submit(request, key)
+            result = await ledger.submit(request, key, taa)
         except VdrError as error:
             if error.code == VdrErrorCode.POOL_REQUEST_FAILED:
                 raise HTTPException(400, detail=str(error))
@@ -205,12 +206,18 @@ async def post_schema_submit(
     submitter = parse_did_indy(req.submitter)
     pool = ledgers.get(submitter.namespace)
     if not pool:
-        raise HTTPException(404, f"No pool for namespace {submitter.namespace}")
+        raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
 
-    async with Ledger(pool, store) as ledger:
+    nym, key = await get_nym_and_key(store, submitter.namespace)
+    async with Ledger(pool) as ledger:
         result = await ledger.endorse_and_submit(
-            req.request, submitter.nym, req.signature
+            request=req.request,
+            submitter=submitter.nym,
+            submitter_signature=req.signature,
+            nym=nym,
+            key=key,
         )
+
     result = TxnResult[SchemaTxnData].model_validate(result)
     schema = Schema(
         issuer_id=req.submitter,
@@ -235,12 +242,12 @@ async def post_schema_endorse(
     submitter = parse_did_indy(req.submitter)
     pool = ledgers.get(submitter.namespace)
     if not pool:
-        raise HTTPException(404, f"No pool for namespace {submitter.namespace}")
+        raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
 
-    # TODO Make sure it's a schema
-
-    async with Ledger(pool, store) as ledger:
-        endorsement = await ledger.endorse(req.request)
+    nym, key = await get_nym_and_key(store, submitter.namespace)
+    async with Ledger(pool) as ledger:
+        # TODO Make sure it's a schema
+        endorsement = await ledger.endorse(req.request, nym, key)
 
     return EndorseResponse(
         nym=endorsement.nym,
@@ -283,14 +290,14 @@ async def post_cred_def(
         nym, _ = await get_nym_and_key(store, submitter.namespace)
     except NymNotFoundError as error:
         raise HTTPException(
-            404, f"No nym found for namespace {submitter.namespace}"
+            404, f"Unrecognized namespace {submitter.namespace}"
         ) from error
 
     pool = ledgers.get(submitter.namespace)
     if not pool:
         raise HTTPException(404, f"No ledger known for namespace {submitter.namespace}")
 
-    async with Ledger(pool, store) as ledger:
+    async with Ledger(pool) as ledger:
         try:
             schema_deref = await ledger.get_schema(req.cred_def.schema_id)
         except LedgerTransactionError as error:
@@ -325,12 +332,18 @@ async def post_cred_def_submit(
     submitter = parse_did_indy(req.submitter)
     pool = ledgers.get(submitter.namespace)
     if not pool:
-        raise HTTPException(404, f"No pool for namespace {submitter.namespace}")
+        raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
 
-    async with Ledger(pool, store) as ledger:
+    nym, key = await get_nym_and_key(store, submitter.namespace)
+    async with Ledger(pool) as ledger:
         result = await ledger.endorse_and_submit(
-            req.request, submitter.nym, req.signature
+            request=req.request,
+            submitter=submitter.nym,
+            submitter_signature=req.signature,
+            nym=nym,
+            key=key,
         )
+
     result = TxnResult[CredDefTxnData].model_validate(result)
 
     return CredDefSubmitResponse(
@@ -352,12 +365,12 @@ async def post_cred_def_endorse(
     pool = ledgers.get(submitter.namespace)
 
     if not pool:
-        raise HTTPException(404, f"No pool for namespace {submitter.namespace}")
+        raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
 
-    # TODO Make sure it's a Cred Def
-
-    async with Ledger(pool, store) as ledger:
-        endorsement = await ledger.endorse(req.request)
+    nym, key = await get_nym_and_key(store, submitter.namespace)
+    async with Ledger(pool) as ledger:
+        # TODO Make sure it's a Cred Def
+        endorsement = await ledger.endorse(req.request, nym, key)
 
     return EndorseResponse(
         nym=endorsement.nym,

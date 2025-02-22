@@ -7,7 +7,8 @@ from pydantic import BaseModel
 
 from did_indy.models.taa import TAAInfo
 from driver_did_indy.depends import LedgersDep, StoreDep
-from driver_did_indy.ledgers import ReadOnlyLedger, get_nym_and_key
+from did_indy.ledger import ReadOnlyLedger
+from driver_did_indy.ledgers import get_nym_and_key
 
 
 router = APIRouter()

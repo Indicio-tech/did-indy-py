@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from driver_did_indy.cache import BasicCache
+from did_indy.cache import BasicCache
 
 
 @pytest.mark.asyncio

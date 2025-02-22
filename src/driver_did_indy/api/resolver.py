@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from did_indy.did import parse_did_indy
 from driver_did_indy.depends import LedgersDep
-from driver_did_indy.ledgers import ReadOnlyLedger
+from did_indy.ledger import ReadOnlyLedger
 
 router = APIRouter(tags=["Resolver"])
 

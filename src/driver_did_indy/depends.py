@@ -1,9 +1,9 @@
 """Application dependencies."""
 
+from base64 import urlsafe_b64decode
 from contextlib import asynccontextmanager
 from pathlib import Path
-from base64 import urlsafe_b64decode
-from typing import Annotated, cast
+from typing import Annotated
 
 from aries_askar import Key, KeyAlg, Store
 from base58 import b58encode
@@ -12,19 +12,12 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.table import Table
 
-from driver_did_indy.cache import BasicCache, Cache
-from driver_did_indy.config import (
-    Config,
-    LedgersConfig,
-    LocalLedgerGenesis,
-    RemoteLedgerGenesis,
-)
-from driver_did_indy.ledgers import (
-    Ledger,
-    LedgerPool,
-    Ledgers,
-    get_genesis_transactions,
-)
+from did_indy.cache import BasicCache, Cache
+from did_indy.config import LedgerConfig, LocalLedgerGenesis, RemoteLedgerGenesis
+from did_indy.ledger import LedgerPool, ReadOnlyLedger, get_genesis_transactions
+from driver_did_indy.config import Config
+from driver_did_indy.ledgers import Ledgers, store_nym_and_key
+from driver_did_indy.taa import accept_txn_author_agreement
 
 
 config: Config | None = None
@@ -43,7 +36,7 @@ async def lifespan(app: FastAPI):
 
     # Loads configuration from environment
     config = Config()  # type: ignore
-    ledgers_config = LedgersConfig.from_config_file(config.ledger_config)
+    ledgers_config = LedgerConfig.from_config_file(config.ledger_config)
 
     cache = BasicCache()
 
@@ -109,24 +102,27 @@ async def init_ledger_pool(
         genesis_transactions=await get_genesis_transactions(config),
     )
 
-    async with Ledger(pool, store) as ledger:
+    async with ReadOnlyLedger(pool) as ledger:
         info = await ledger.get_txn_author_agreement()
-        if info.taa and info.required:
-            markdown = Markdown(info.taa.text)
-            console.print(
-                f"By continuing to use this software, you agree to the Transaction Author "
-                f"Agreement Version {info.taa.version} for {config.namespace} presented "
-                "below:\n\n",
-                style="bold red",
-            )
-            console.print(markdown)
-            console.print(
-                f"\n\nBy continuing to use this software, you agree to the Transaction Author "
-                f"Agreement Version {info.taa.version} for {config.namespace} presented "
-                "above.",
-                style="bold red",
-            )
-            await ledger.accept_txn_author_agreement(info.taa, "wallet_agreement")
+
+    if not info.taa or not info.required:
+        return pool
+
+    markdown = Markdown(info.taa.text)
+    console.print(
+        f"By continuing to use this software, you agree to the Transaction Author "
+        f"Agreement Version {info.taa.version} for {config.namespace} presented "
+        "below:\n\n",
+        style="bold red",
+    )
+    console.print(markdown)
+    console.print(
+        f"\n\nBy continuing to use this software, you agree to the Transaction Author "
+        f"Agreement Version {info.taa.version} for {config.namespace} presented "
+        "above.",
+        style="bold red",
+    )
+    await accept_txn_author_agreement(pool, store, info.taa, "wallet_agreement")
 
     return pool
 
@@ -157,34 +153,6 @@ async def derive_nym_from_seed(store: Store, seed: str, namespace: str):
     nym = b58encode(pub_bytes[:16]).decode()
     verkey = b58encode(pub_bytes).decode()
 
-    async with store.session() as session:
-        entry = await session.fetch_key(name=namespace, for_update=True)
-        if not entry:
-            await session.insert_key(
-                name=namespace,
-                key=key,
-                tags={"nym": nym},
-            )
-            await session.insert(
-                category="nym",
-                name=namespace,
-                value=nym,
-                tags={"verkey": verkey},
-            )
-        else:
-            prior = cast(Key, entry.key)
-            if prior.get_public_bytes() != pub_bytes:
-                await session.remove_key(namespace)
-                await session.insert_key(
-                    name=namespace,
-                    key=key,
-                    tags={"nym": nym},
-                )
-                await session.replace(
-                    category="nym",
-                    name=namespace,
-                    value=nym,
-                    tags={"verkey": verkey},
-                )
+    await store_nym_and_key(store, namespace, nym, key)
 
     return nym, verkey
