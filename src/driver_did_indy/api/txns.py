@@ -14,7 +14,7 @@ from did_indy.did import nym_from_verkey, parse_did_indy
 from did_indy.models.anoncreds import CredDef, Schema
 from did_indy.models.taa import TaaAcceptance
 from did_indy.models.txn import CredDefTxnData, SchemaTxnData, TxnMetadata, TxnResult
-from driver_did_indy.anoncreds import indy_cred_def_request, indy_schema_request
+from did_indy.anoncreds import indy_cred_def_request, indy_schema_request
 from driver_did_indy.depends import LedgersDep, StoreDep
 from did_indy.ledger import (
     Ledger,

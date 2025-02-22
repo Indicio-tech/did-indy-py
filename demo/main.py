@@ -13,7 +13,7 @@ from aries_askar import Key, KeyAlg
 from base58 import b58encode
 
 from did_indy_client.client import IndyDriverClient
-from driver_did_indy.anoncreds import (
+from did_indy.anoncreds import (
     indy_cred_def_request,
     indy_schema_request,
     make_schema_id_from_schema,
