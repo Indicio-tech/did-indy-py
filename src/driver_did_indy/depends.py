@@ -158,10 +158,25 @@ async def derive_nym_from_seed(store: Store, seed: str, namespace: str):
     return nym, verkey
 
 
-def get_config():
+def get_config() -> Config:
     """Retrieve config."""
+    global config
+    if config is None:
+        raise RuntimeError("config is not set; did startup fail?")
 
-    return Config()  # type: ignore
+    return config
 
 
 ConfigDep = Annotated[Config, Depends(get_config)]
+
+
+def get_cache() -> Cache:
+    """Retrieve cache."""
+    global cache
+    if cache is None:
+        raise RuntimeError("config is not set; did startup fail?")
+
+    return cache
+
+
+CacheDep = Annotated[Cache, Depends(get_cache)]

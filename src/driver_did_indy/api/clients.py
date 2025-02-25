@@ -12,17 +12,27 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
 from pydantic import BaseModel, ConfigDict
 
-from driver_did_indy.api.models import (
-    ClientCreateRequest,
-    ClientCreateResponse,
-    ClientRegisterTokenResponse,
-)
 from driver_did_indy.config import Config
 from driver_did_indy.depends import ConfigDep, StoreDep
 from driver_did_indy.security import Auth
 from driver_did_indy.auto_endorse import ClientAutoEndorseRules
 
 router = APIRouter(prefix="/clients", tags=["clients"])
+
+
+class ClientCreateRequest(BaseModel):
+    """Client Create Request."""
+
+    name: str
+    auto_endorse: ClientAutoEndorseRules | None = None
+
+
+class ClientCreateResponse(BaseModel):
+    """Client create response."""
+
+    client_id: str
+    name: str
+    token: str
 
 
 async def create_client(
@@ -95,6 +105,12 @@ async def get_client_token(
         algorithm="HS256",
     )
     return ClientCreateResponse(client_id=client_id, name=name, token=token)
+
+
+class ClientRegisterTokenResponse(BaseModel):
+    """Response to register token."""
+
+    token: str
 
 
 @router.post("/register/token", summary="Generate a new client registration token")

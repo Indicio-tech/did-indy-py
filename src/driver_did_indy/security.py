@@ -148,4 +148,8 @@ def auth_provider(config: Config):
         raise ConfigError(f"Invalid auth mode {config.auth}")
 
 
-Auth = auth_provider(get_config())
+try:
+    Auth = auth_provider(get_config())
+except RuntimeError:
+    # This is to enable importing models from api modules from the client
+    Auth = InsecureMode()

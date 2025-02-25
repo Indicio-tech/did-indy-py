@@ -7,12 +7,14 @@ from typing import Any, List, Optional
 
 from did_indy.models.taa import TAAInfo, TaaAcceptance
 from did_indy_client.http import HTTPClient
-from driver_did_indy.api.models import (
-    ClientCreateResponse,
-    EndorseResponse,
+from driver_did_indy.api.txns import (
     NymResponse,
+    EndorseResponse,
     SchemaSubmitResponse,
     TxnToSignResponse,
+)
+from driver_did_indy.api.clients import (
+    ClientCreateResponse,
 )
 
 LOGGER = logging.getLogger(__name__)
