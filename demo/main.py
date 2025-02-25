@@ -12,7 +12,7 @@ from anoncreds import CredentialDefinition, Schema
 from aries_askar import Key, KeyAlg
 from base58 import b58encode
 
-from did_indy_client.client import IndyDriverClient
+from did_indy_client.client import IndyDriverAdminClient, IndyDriverClient
 from did_indy.anoncreds import (
     indy_cred_def_request,
     indy_schema_request,
@@ -58,8 +58,17 @@ async def thin():
     """Demo a thin client."""
     logging_to_stdout()
 
+    admin = IndyDriverAdminClient(DRIVER, admin_api_key="insecure-api-key")
+    token = (
+        await admin.create_client(
+            "test",
+            schemas=True,
+            cred_defs=True,
+        )
+    ).token
+    client = IndyDriverClient(DRIVER, client_token=token)
+
     NAMESPACE = "indicio:test"
-    client = IndyDriverClient(DRIVER)
     taa_info = await client.get_taa(NAMESPACE)
     taa = await client.accept_taa(taa_info, "on_file")
 
@@ -90,8 +99,17 @@ async def thick():
     """Demo a thick client."""
     logging_to_stdout()
 
+    admin = IndyDriverAdminClient(DRIVER, admin_api_key="insecure-api-key")
+    token = (
+        await admin.create_client(
+            "test",
+            schemas=True,
+            cred_defs=True,
+        )
+    ).token
+    client = IndyDriverClient(DRIVER, client_token=token)
+
     NAMESPACE = "indicio:test"
-    client = IndyDriverClient(DRIVER)
     taa_info = await client.get_taa(NAMESPACE)
     taa = await client.accept_taa(taa_info, "on_file")
 

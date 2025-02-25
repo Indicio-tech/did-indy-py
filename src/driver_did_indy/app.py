@@ -2,11 +2,10 @@ import logging.config
 from os import getenv
 from fastapi import FastAPI
 
-from driver_did_indy.depends import lifespan
+from driver_did_indy.depends import get_config, lifespan
 
 from .webhooks import webhooks
-from .api import txns
-from .api import namespaces
+from .api import txns, namespaces, clients
 
 LOG_LEVEL = getenv("LOG_LEVEL", "DEBUG")
 logging.config.dictConfig(
@@ -69,3 +68,7 @@ app = FastAPI(
 
 app.include_router(txns.router)
 app.include_router(namespaces.router)
+
+config = get_config()
+if config.auth == "client-tokens":
+    app.include_router(clients.router)

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from did_indy.models.anoncreds import CredDef, Schema
 from did_indy.models.taa import TaaAcceptance
 from did_indy.models.txn import TxnMetadata, TxnResult
+from driver_did_indy.auto_endorse import ClientAutoEndorseRules
 
 
 class NymRequest(BaseModel):
@@ -101,6 +102,27 @@ class CredDefSubmitResponse(BaseModel):
     cred_def_metadata: TxnMetadata
 
 
+class ClientCreateRequest(BaseModel):
+    """Client Create Request."""
+
+    name: str
+    auto_endorse: ClientAutoEndorseRules | None = None
+
+
+class ClientCreateResponse(BaseModel):
+    """Client create response."""
+
+    client_id: str
+    name: str
+    token: str
+
+
+class ClientRegisterTokenResponse(BaseModel):
+    """Response to register token."""
+
+    token: str
+
+
 __all__ = [
     "NymRequest",
     "NymResponse",
@@ -112,4 +134,7 @@ __all__ = [
     "SchemaSubmitResponse",
     "CredDefRequest",
     "CredDefSubmitResponse",
+    "ClientCreateRequest",
+    "ClientCreateResponse",
+    "ClientRegisterTokenResponse",
 ]

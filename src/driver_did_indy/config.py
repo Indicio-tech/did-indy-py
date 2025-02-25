@@ -17,6 +17,7 @@ class Config(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env")
 
+    issuer: str
     passphrase: str
     auth: Literal["insecure", "api-key", "client-tokens"]
     ledger_config: str | None = None

@@ -11,8 +11,11 @@ services:
       - "../src/did_indy:/usr/src/app/src/did_indy:z"
       - "./demo.ledgers.toml:/run/secrets/ledgers.toml:z"
     environment:
-      PASSPHRASE: "insecure"
-      AUTH: "insecure"
+      ISSUER: "http://driver"
+      PASSPHRASE: "insecure-passphrase"
+      AUTH: "client-tokens"
+      CLIENT_TOKEN_SECRET: "insecure-secret"
+      ADMIN_API_KEY: "insecure-api-key"
     command: dev
     healthcheck:
       test: python healthcheck.py localhost 80

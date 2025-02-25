@@ -8,6 +8,7 @@ from typing import Any, List, Optional
 from did_indy.models.taa import TAAInfo, TaaAcceptance
 from did_indy_client.http import HTTPClient
 from driver_did_indy.api.models import (
+    ClientCreateResponse,
     EndorseResponse,
     NymResponse,
     SchemaSubmitResponse,
@@ -21,8 +22,80 @@ class IndyDriverClientError(Exception):
     """Raised on errors in indy client."""
 
 
+class IndyDriverAdminClient(HTTPClient):
+    """Client to admin endpoints of did:indy driver."""
+
+    def __init__(
+        self,
+        base_url: str,
+        admin_api_key: str | None = None,
+        *,
+        headers: dict[str, str] | None = None,
+    ):
+        """Init the client."""
+        headers = headers or {}
+        if admin_api_key:
+            headers["X-API-Key"] = admin_api_key
+        super().__init__(base_url, headers)
+
+    async def create_client(
+        self,
+        name: str,
+        *,
+        new_nyms: int = 1,
+        nym_updates: bool = True,
+        nym_role_changes: bool = False,
+        schemas: bool = False,
+        cred_defs: bool = False,
+        rev_reg_defs: bool = True,
+        rev_reg_entries: bool = True,
+    ) -> ClientCreateResponse:
+        """Create a new client."""
+        response = await self.post(
+            "/clients",
+            json={
+                "name": name,
+                "auto_endorse": {
+                    "new_nyms": new_nyms,
+                    "nym_updates": nym_updates,
+                    "nym_role_changes": nym_role_changes,
+                    "schemas": schemas,
+                    "cred_defs": cred_defs,
+                    "rev_reg_defs": rev_reg_defs,
+                    "rev_reg_entries": rev_reg_entries,
+                },
+            },
+            response=ClientCreateResponse,
+        )
+        return response
+
+    async def refresh_token(self, client_id: str) -> ClientCreateResponse:
+        """Refresh the token, revoking the old."""
+        response = await self.get(
+            f"/clients/{client_id}/token",
+            response=ClientCreateResponse,
+        )
+        return response
+
+
 class IndyDriverClient(HTTPClient):
     """Client to the did:indy driver."""
+
+    def __init__(
+        self,
+        base_url: str,
+        client_api_key: str | None = None,
+        client_token: str | None = None,
+        *,
+        headers: dict[str, str] | None = None,
+    ):
+        """Init the client."""
+        headers = headers or {}
+        if client_token:
+            headers["Authorization"] = f"Bearer {client_token}"
+        if client_api_key:
+            headers["X-API-Key"] = client_api_key
+        super().__init__(base_url, headers)
 
     async def get_namespaces(self) -> List[str]:
         """Get namespaces."""
