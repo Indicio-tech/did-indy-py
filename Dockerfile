@@ -15,11 +15,11 @@ ENV PATH="/opt/pdm/bin:$PATH"
 
 # Setup project
 COPY pyproject.toml pdm.lock README.md ./
-RUN mkdir -p src/driver_did_indy && touch src/driver_did_indy/__init__.py
+RUN mkdir -p src/did_indy && touch src/did_indy/__init__.py
 RUN pdm install -G :all
 
 COPY healthcheck.py ./
 COPY src ./src
 
 ENTRYPOINT ["pdm", "run"]
-CMD ["fastapi", "dev", "src/driver_did_indy/app.py", "--host", "0.0.0.0", "--port", "80"]
+CMD ["fastapi", "dev", "src/did_indy/driver/app.py", "--host", "0.0.0.0", "--port", "80"]

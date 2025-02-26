@@ -6,8 +6,8 @@ import logging
 from typing import Any, List, Optional
 
 from did_indy.models.taa import TAAInfo, TaaAcceptance
-from driver_did_indy.api.clients import ClientCreateResponse
-from driver_did_indy.api.txns import (
+from did_indy.driver.api.clients import ClientCreateResponse
+from did_indy.driver.api.txns import (
     EndorseResponse,
     NymResponse,
     SchemaSubmitResponse,

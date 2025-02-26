@@ -12,10 +12,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
 from pydantic import BaseModel, ConfigDict
 
-from driver_did_indy.config import Config
-from driver_did_indy.depends import ConfigDep, StoreDep
-from driver_did_indy.security import Auth
-from driver_did_indy.auto_endorse import ClientAutoEndorseRules
+from did_indy.driver.config import Config
+from did_indy.driver.depends import ConfigDep, StoreDep
+from did_indy.driver.security import Auth
+from did_indy.driver.auto_endorse import ClientAutoEndorseRules
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 

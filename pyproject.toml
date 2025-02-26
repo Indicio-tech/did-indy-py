@@ -39,8 +39,8 @@ dev = [
 ]
 
 [tool.pdm.scripts]
-provision = {call = "driver_did_indy.provision:main"}
-dev = "fastapi dev src/driver_did_indy/app.py --host 0.0.0.0 --port 80"
+provision = {call = "did_indy.driver.provision:main"}
+dev = "fastapi dev src/did_indy/driver/app.py --host 0.0.0.0 --port 80"
 
 [build-system]
 requires = ["pdm-backend"]

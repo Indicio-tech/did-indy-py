@@ -10,9 +10,9 @@ from fastapi.security import (
 import jwt
 from pydantic import BaseModel, ConfigDict
 
-from driver_did_indy.auto_endorse import ClientAutoEndorseRules, derive_scopes
-from driver_did_indy.config import Config, ConfigError
-from driver_did_indy.depends import StoreDep, get_config
+from did_indy.driver.auto_endorse import ClientAutoEndorseRules, derive_scopes
+from did_indy.driver.config import Config, ConfigError
+from did_indy.driver.depends import StoreDep, get_config
 
 
 class InsecureMode:

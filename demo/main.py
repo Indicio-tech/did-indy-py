@@ -51,7 +51,7 @@ def logging_to_stdout():
         level=logging.WARNING,
         format="[%(levelname)s] %(name)s %(message)s",
     )
-    logging.getLogger("did_indy_client").setLevel(LOG_LEVEL.upper())
+    logging.getLogger("did_indy").setLevel(LOG_LEVEL.upper())
 
 
 async def thin():

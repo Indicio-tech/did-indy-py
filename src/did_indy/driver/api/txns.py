@@ -15,15 +15,15 @@ from did_indy.models.anoncreds import CredDef, Schema
 from did_indy.models.taa import TaaAcceptance
 from did_indy.models.txn import CredDefTxnData, SchemaTxnData, TxnMetadata, TxnResult
 from did_indy.anoncreds import indy_cred_def_request, indy_schema_request
-from driver_did_indy.auto_endorse import SCOPE_CRED_DEF, SCOPE_NYM_NEW, SCOPE_SCHEMA
-from driver_did_indy.depends import LedgersDep, StoreDep
+from did_indy.driver.auto_endorse import SCOPE_CRED_DEF, SCOPE_NYM_NEW, SCOPE_SCHEMA
+from did_indy.driver.depends import LedgersDep, StoreDep
 from did_indy.ledger import (
     Ledger,
     LedgerTransactionError,
 )
-from driver_did_indy.ledgers import NymNotFoundError, get_nym_and_key
-from driver_did_indy.security import Auth
-from driver_did_indy.taa import get_latest_txn_author_acceptance
+from did_indy.driver.ledgers import NymNotFoundError, get_nym_and_key
+from did_indy.driver.security import Auth
+from did_indy.driver.taa import get_latest_txn_author_acceptance
 
 router = APIRouter(prefix="/txn", tags=["txn"])
 

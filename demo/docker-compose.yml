@@ -7,7 +7,6 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - "../src/driver_did_indy:/usr/src/app/src/driver_did_indy:z"
       - "../src/did_indy:/usr/src/app/src/did_indy:z"
       - "./demo.ledgers.toml:/run/secrets/ledgers.toml:z"
     environment:

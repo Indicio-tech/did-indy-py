@@ -2,8 +2,8 @@ import logging.config
 from os import getenv
 from fastapi import FastAPI
 
-from driver_did_indy.config import Config
-from driver_did_indy.depends import lifespan
+from did_indy.driver.config import Config
+from did_indy.driver.depends import lifespan
 
 from .webhooks import webhooks
 from .api import txns, namespaces, clients
@@ -26,7 +26,7 @@ logging.config.dictConfig(
             },
         },
         "loggers": {
-            "driver_did_indy": {
+            "did_indy": {
                 "handlers": ["default"],
                 "level": LOG_LEVEL,
                 "propagate": True,

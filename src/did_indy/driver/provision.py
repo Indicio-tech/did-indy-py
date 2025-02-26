@@ -2,7 +2,7 @@
 
 import asyncio
 
-from driver_did_indy.depends import lifespan
+from did_indy.driver.depends import lifespan
 
 
 async def provision():

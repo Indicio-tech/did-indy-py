@@ -15,9 +15,9 @@ from rich.table import Table
 from did_indy.cache import BasicCache, Cache
 from did_indy.config import LedgerConfig, LocalLedgerGenesis, RemoteLedgerGenesis
 from did_indy.ledger import LedgerPool, ReadOnlyLedger, get_genesis_transactions
-from driver_did_indy.config import Config
-from driver_did_indy.ledgers import Ledgers, store_nym_and_key
-from driver_did_indy.taa import accept_txn_author_agreement
+from did_indy.driver.config import Config
+from did_indy.driver.ledgers import Ledgers, store_nym_and_key
+from did_indy.driver.taa import accept_txn_author_agreement
 
 
 config: Config | None = None
