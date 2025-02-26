@@ -12,7 +12,7 @@ from anoncreds import CredentialDefinition, Schema
 from aries_askar import Key, KeyAlg
 from base58 import b58encode
 
-from did_indy_client.client import IndyDriverAdminClient, IndyDriverClient
+from did_indy.client.client import IndyDriverAdminClient, IndyDriverClient
 from did_indy.anoncreds import (
     indy_cred_def_request,
     indy_schema_request,
