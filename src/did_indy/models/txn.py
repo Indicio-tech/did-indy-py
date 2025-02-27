@@ -55,6 +55,10 @@ class RevRegDefTxnData(BaseModel):
     value: RevRegDefTxnDataValue
 
 
+class RevRegEntryTxnData(BaseModel):
+    """Rev Reg Entry Transaction txn.data."""
+
+
 TxnData = TypeVar("TxnData", bound=BaseModel)
 
 
@@ -173,6 +177,8 @@ class GetCredDefReply(BaseModel):
 
 
 CredDefDeref = DereferenceResult[CredDefTxnDataData, GetCredDefReply]
+
+RevRegDefDeref = DereferenceResult[CredDefTxnDataData, GetCredDefReply]
 
 
 @dataclass

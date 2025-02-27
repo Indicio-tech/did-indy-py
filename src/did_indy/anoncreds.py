@@ -2,13 +2,19 @@
 
 import logging
 
-from anoncreds import CredentialDefinition, Schema, RevocationRegistryDefinition
+from anoncreds import (
+    CredentialDefinition,
+    RevocationStatusList,
+    Schema,
+    RevocationRegistryDefinition,
+)
 from indy_vdr import Request
 from indy_vdr import ledger
 
 from did_indy.did import parse_did_indy
 from did_indy.models.anoncreds import (
     RevRegDef as RevRegDefModel,
+    RevStatusList,
     Schema as SchemaModel,
     CredDef as CredDefModel,
 )
@@ -124,15 +130,15 @@ def indy_cred_def_request(
     return request
 
 
-def make_rev_reg_def_id(did: str, ref: str, tag: str) -> str:
+def make_rev_reg_def_id(did: str, ref: str, name: str, tag: str) -> str:
     """Make rev reg def id."""
-    return f"{did}/anoncreds/v0/REV_REG_DEF/{ref}/{tag}"
+    return f"{did}/anoncreds/v0/REV_REG_DEF/{ref}/{name}/{tag}"
 
 
 def make_rev_reg_def_id_from_result(submitter: str, rev_reg_def: RevRegDefTxnData):
     """Get rev reg def id from result."""
-    _, ref, _ = rev_reg_def.cred_def_id.rsplit(":", 2)
-    return make_rev_reg_def_id(submitter, ref, rev_reg_def.tag)
+    _, ref, name = rev_reg_def.cred_def_id.rsplit(":", 2)
+    return make_rev_reg_def_id(submitter, ref, name, rev_reg_def.tag)
 
 
 def make_indy_rev_reg_def_id(
@@ -143,6 +149,14 @@ def make_indy_rev_reg_def_id(
 ) -> str:
     """Derive the revocation registry definition ID."""
     return f"{submitter}:4:{indy_cred_def_id}:{revoc_def_type}:{tag}"
+
+
+def make_indy_rev_reg_def_id_from_did_url(rev_reg_def_id: str) -> str:
+    """Derive indy rev reg def id from DID URL."""
+    did, _, _, _, ref, name, tag = rev_reg_def_id.split("/")
+    did = parse_did_indy(did)
+    cred_def_id = make_indy_cred_def_id(did.nym, "CL", int(ref), name)
+    return make_indy_rev_reg_def_id(did.nym, cred_def_id, "CL_ACCUM", tag)
 
 
 def indy_rev_reg_def_request(
@@ -179,5 +193,31 @@ def indy_rev_reg_def_request(
     }
     request = ledger.build_revoc_reg_def_request(
         submitter_did=submitter, revoc_reg_def=indy_rev_reg_def
+    )
+    return request
+
+
+def indy_rev_reg_entry_request(
+    status_list: RevStatusList | RevocationStatusList | dict,
+) -> Request:
+    """Create a revocation entry request."""
+    if isinstance(status_list, RevocationStatusList):
+        status_list = status_list.to_dict()
+    if isinstance(status_list, RevStatusList):
+        status_list = status_list.model_dump(by_alias=True)
+
+    submitter = status_list["issuerId"]
+    if submitter.startswith("did:indy:"):
+        submitter = parse_did_indy(submitter).nym
+
+    indy_rev_reg_entry = {
+        "ver": "1.0",
+        "value": {"accum": status_list["currentAccumulator"]},
+    }
+    request = ledger.build_revoc_reg_entry_request(
+        submitter,
+        make_indy_rev_reg_def_id_from_did_url(status_list["revRegDefId"]),
+        "CL_ACCUM",
+        indy_rev_reg_entry,
     )
     return request

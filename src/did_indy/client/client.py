@@ -12,6 +12,7 @@ from did_indy.driver.api.txns import (
     EndorseResponse,
     NymResponse,
     RevRegDefSubmitResponse,
+    RevStatusListSubmitResponse,
     SchemaSubmitResponse,
     TxnToSignResponse,
 )
@@ -303,5 +304,42 @@ class IndyDriverClient(HTTPClient):
                 "signature": signature,
             },
             response=RevRegDefSubmitResponse,
+        )
+        return result
+
+    async def create_rev_status_list(
+        self,
+        rev_status_list: dict | str,
+        taa: TaaAcceptance | None = None,
+    ) -> TxnToSignResponse:
+        """Create revocation status list."""
+        result = await self.post(
+            url="/txn/rev-status-list",
+            json={
+                "rev_status_list": rev_status_list,
+                "taa": taa.for_request() if taa else None,
+            },
+            response=TxnToSignResponse,
+        )
+        return result
+
+    async def submit_rev_status_list(
+        self,
+        submitter: str,
+        request: str,
+        signature: str | bytes,
+    ) -> RevStatusListSubmitResponse:
+        """Submit a signed txn."""
+        if isinstance(signature, bytes):
+            signature = urlsafe_b64encode(signature).decode()
+
+        result = await self.post(
+            url="/txn/rev-status-list/submit",
+            json={
+                "submitter": submitter,
+                "request": request,
+                "signature": signature,
+            },
+            response=RevStatusListSubmitResponse,
         )
         return result

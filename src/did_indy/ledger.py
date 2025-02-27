@@ -19,6 +19,7 @@ from did_indy.models.taa import TAAInfo, TAARecord, TaaAcceptance
 from did_indy.models.txn import (
     CredDefDeref,
     Endorsement,
+    RevRegDefDeref,
     SchemaDeref,
 )
 from did_indy.cache import Cache
@@ -424,6 +425,13 @@ class BaseLedger:
         result = await self.dereference(cred_def_id)
         cred_def_result = CredDefDeref.model_validate(result)
         return cred_def_result
+
+    async def get_rev_reg_def(self, rev_reg_def_id: str) -> RevRegDefDeref:
+        """Retrieve a rev reg def by ID (DID URL)."""
+        result = await self.dereference(rev_reg_def_id)
+        print(result)
+        rev_reg_def_result = RevRegDefDeref.model_validate(result)
+        return rev_reg_def_result
 
 
 class ReadOnlyLedger(BaseLedger):

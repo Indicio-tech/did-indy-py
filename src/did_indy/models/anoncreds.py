@@ -54,7 +54,7 @@ class RevRegDef(BaseModel):
     value: Dict[str, Any]
 
 
-class RevList(BaseModel):
+class RevStatusList(BaseModel):
     """Rev List Model."""
 
     issuer_id: str = Field(
@@ -73,4 +73,4 @@ class RevList(BaseModel):
         validation_alias=AliasChoices("current_accumulator", "currentAccumulator"),
         serialization_alias="currentAccumulator",
     )
-    timestamp: int
+    timestamp: int | None = None
