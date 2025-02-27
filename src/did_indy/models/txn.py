@@ -35,6 +35,26 @@ class CredDefTxnData(BaseModel):
     tag: str
 
 
+class RevRegDefTxnDataValue(BaseModel):
+    """Rev Reg Def Transaction txn.data.value."""
+
+    issuance_type: Literal["ISSUANCE_BY_DEFAULT"] = Field(alias="issuanceType")
+    max_cred_num: int = Field(alias="maxCredNum")
+    public_keys: Any = Field(alias="publicKeys")
+    tails_hash: str = Field(alias="tailsHash")
+    tails_location: str = Field(alias="tailsLocation")
+
+
+class RevRegDefTxnData(BaseModel):
+    """Rev Reg Def Transaction txn.data."""
+
+    cred_def_id: str = Field(alias="credDefId")
+    id: str
+    revoc_def_type: Literal["CL_ACCUM"] = Field(alias="revocDefType")
+    tag: str
+    value: RevRegDefTxnDataValue
+
+
 TxnData = TypeVar("TxnData", bound=BaseModel)
 
 
@@ -91,10 +111,39 @@ class TxnResult(BaseModel, Generic[TxnData]):
     auditPath: List[str]
 
 
-class GetReply(BaseModel, Generic[TxnData]):
-    """Get txn reply."""
+Reply = TypeVar("Reply", bound=BaseModel)
 
-    data: TxnData
+
+class NodeResponse(BaseModel, Generic[Reply]):
+    """Node response object."""
+
+    op: Literal["REPLY"] | str
+    result: Reply
+
+
+class DerefContentMetadata(BaseModel, Generic[Reply]):
+    """Content metadata in deref result."""
+
+    nodeResponse: NodeResponse[Reply]
+    objectType: Literal["SCHEMA", "CRED_DEF"] | str
+
+
+ContentStream = TypeVar("ContentStream", bound=BaseModel)
+ContentMetadata = TypeVar("ContentMetadata", bound=BaseModel)
+
+
+class DereferenceResult(BaseModel, Generic[ContentStream, ContentMetadata]):
+    """Result of a dereference."""
+
+    dereferencingMetadata: Any
+    contentStream: ContentStream
+    contentMetadata: DerefContentMetadata[ContentMetadata]
+
+
+class GetSchemaReply(BaseModel):
+    """Get schema reply."""
+
+    data: SchemaTxnDataData
     dest: str
     identifier: str
     reqId: int
@@ -104,26 +153,26 @@ class GetReply(BaseModel, Generic[TxnData]):
     type: str
 
 
-class NodeResponse(BaseModel, Generic[TxnData]):
-    """Node response object."""
-
-    op: Literal["REPLY"] | str
-    result: GetReply[TxnData]
+SchemaDeref = DereferenceResult[SchemaTxnDataData, GetSchemaReply]
 
 
-class DerefContentMetadata(BaseModel, Generic[TxnData]):
-    """Content metadata in deref result."""
+class GetCredDefReply(BaseModel):
+    """Get cred def reply."""
 
-    nodeResponse: NodeResponse
-    objectType: Literal["SCHEMA"] | str
+    data: CredDefTxnDataData
+    identifier: str
+    origin: str
+    ref: int
+    reqId: int
+    seqNo: int
+    signature_type: Literal["CL"]
+    state_proof: Any
+    tag: str
+    txnTime: int
+    type: str
 
 
-class DereferenceResult(BaseModel, Generic[TxnData]):
-    """Result of a dereference."""
-
-    dereferencingMetadata: Any
-    contentStream: TxnData
-    contentMetadata: DerefContentMetadata
+CredDefDeref = DereferenceResult[CredDefTxnDataData, GetCredDefReply]
 
 
 @dataclass

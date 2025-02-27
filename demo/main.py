@@ -8,7 +8,7 @@ from os import getenv
 from secrets import token_bytes
 import sys
 
-from anoncreds import CredentialDefinition, Schema
+from anoncreds import CredentialDefinition, RevocationRegistryDefinition, Schema
 from aries_askar import Key, KeyAlg
 from base58 import b58encode
 
@@ -89,10 +89,23 @@ async def thin():
         issuer_id=did,
         tag="test",
         signature_type="CL",
+        support_revocation=True,
     )
     result = await client.create_cred_def(cred_def.to_json(), taa=taa)
     sig = nym.key.sign_message(result.get_signature_input_bytes())
     result = await client.submit_cred_def(did, result.request, sig)
+
+    rev_reg_def, private = RevocationRegistryDefinition.create(
+        cred_def_id=result.cred_def_id,
+        cred_def=cred_def,
+        issuer_id=did,
+        tag="0",
+        registry_type="CL_ACCUM",
+        max_cred_num=1000,
+    )
+    result = await client.create_rev_reg_def(rev_reg_def.to_json(), taa=taa)
+    sig = nym.key.sign_message(result.get_signature_input_bytes())
+    result = await client.submit_rev_reg_def(did, result.request, sig)
 
 
 async def thick():

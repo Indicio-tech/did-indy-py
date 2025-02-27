@@ -2,6 +2,7 @@
 
 import base64
 import json
+import logging
 from typing import Any, Mapping
 
 from fastapi import APIRouter, HTTPException, Security
@@ -11,10 +12,22 @@ from indy_vdr.ledger import build_nym_request
 from pydantic import BaseModel, Field
 
 from did_indy.did import nym_from_verkey, parse_did_indy
-from did_indy.models.anoncreds import CredDef, Schema
+from did_indy.models.anoncreds import CredDef, RevRegDef, Schema
 from did_indy.models.taa import TaaAcceptance
-from did_indy.models.txn import CredDefTxnData, SchemaTxnData, TxnMetadata, TxnResult
-from did_indy.anoncreds import indy_cred_def_request, indy_schema_request
+from did_indy.models.txn import (
+    CredDefTxnData,
+    RevRegDefTxnData,
+    SchemaTxnData,
+    TxnMetadata,
+    TxnResult,
+)
+from did_indy.anoncreds import (
+    indy_cred_def_request,
+    indy_rev_reg_def_request,
+    indy_schema_request,
+    make_indy_rev_reg_def_id,
+    make_rev_reg_def_id_from_result,
+)
 from did_indy.driver.auto_endorse import SCOPE_CRED_DEF, SCOPE_NYM_NEW, SCOPE_SCHEMA
 from did_indy.driver.depends import LedgersDep, StoreDep
 from did_indy.ledger import (
@@ -26,6 +39,7 @@ from did_indy.driver.security import Auth
 from did_indy.driver.taa import get_latest_txn_author_acceptance
 
 router = APIRouter(prefix="/txn", tags=["txn"])
+LOGGER = logging.getLogger(__name__)
 
 
 class NymRequest(BaseModel):
@@ -185,7 +199,7 @@ class SchemaSubmitResponse(BaseModel):
 
     schema_id: str
     indy_schema_id: str
-    registration_metadata: TxnResult
+    registration_metadata: TxnResult[SchemaTxnData]
     schema_metadata: TxnMetadata
 
 
@@ -297,7 +311,7 @@ class CredDefSubmitResponse(BaseModel):
 
     cred_def_id: str
     indy_cred_def_id: str
-    registration_metadata: TxnResult
+    registration_metadata: TxnResult[CredDefTxnData]
     cred_def_metadata: TxnMetadata
 
 
@@ -308,7 +322,7 @@ async def post_cred_def(
     store: StoreDep,
     _=Security(Auth.client, scopes=[SCOPE_CRED_DEF]),
 ) -> TxnToSignResponse:
-    """Create a schema and return a txn for the client to sign and later submit."""
+    """Create a cred def and return a txn for the client to sign and later submit."""
     if isinstance(req.cred_def, str):
         req.cred_def = CredDef.model_validate_json(req.cred_def)
 
@@ -349,7 +363,7 @@ async def post_cred_def_submit(
     store: StoreDep,
     _=Security(Auth.client, scopes=[SCOPE_CRED_DEF]),
 ) -> CredDefSubmitResponse:
-    """Endorse and submit a txn."""
+    """Endorse and submit a cred def txn."""
     submitter = parse_did_indy(req.submitter)
     pool = ledgers.get(submitter.namespace)
     if not pool:
@@ -364,8 +378,7 @@ async def post_cred_def_submit(
             nym=nym,
             key=key,
         )
-
-    result = TxnResult[CredDefTxnData].model_validate(result)
+        result = TxnResult[CredDefTxnData].model_validate(result)
 
     return CredDefSubmitResponse(
         cred_def_id=make_cred_def_id(req.submitter, result.txn.data),
@@ -394,6 +407,114 @@ async def post_cred_def_endorse(
     nym, key = await get_nym_and_key(store, submitter.namespace)
     async with Ledger(pool) as ledger:
         # TODO Make sure it's a Cred Def
+        endorsement = await ledger.endorse(req.request, nym, key)
+
+    return EndorseResponse(
+        nym=endorsement.nym,
+        signature=base64.urlsafe_b64encode(endorsement.signature).decode(),
+    )
+
+
+class RevRegDefRequest(BaseModel):
+    """Credential Definition create request."""
+
+    rev_reg_def: RevRegDef | str
+    taa: TaaAcceptance | None = None
+
+
+@router.post("/rev-reg-def")
+async def post_rev_reg_def(
+    req: RevRegDefRequest,
+    store: StoreDep,
+    ledgers: LedgersDep,
+) -> TxnToSignResponse:
+    """Create a rev reg def and return a txn for the client to sign and later submit."""
+    if isinstance(req.rev_reg_def, str):
+        req.rev_reg_def = RevRegDef.model_validate_json(req.rev_reg_def)
+
+    submitter = parse_did_indy(req.rev_reg_def.issuer_id)
+    try:
+        nym, _ = await get_nym_and_key(store, submitter.namespace)
+    except NymNotFoundError as error:
+        raise HTTPException(
+            404, f"Unrecognized namespace {submitter.namespace}"
+        ) from error
+
+    pool = ledgers.get(submitter.namespace)
+    if not pool:
+        raise HTTPException(404, f"No ledger known for namespace {submitter.namespace}")
+
+    request = indy_rev_reg_def_request(req.rev_reg_def)
+    request.set_endorser(nym)
+    if req.taa:
+        request.set_txn_author_agreement_acceptance(req.taa.for_request())
+
+    return TxnToSignResponse(
+        request=request.body,
+        signature_input=base64.urlsafe_b64encode(request.signature_input).decode(),
+    )
+
+
+class RevRegDefSubmitResponse(BaseModel):
+    """Rev Reg Definition submit response."""
+
+    rev_reg_def_id: str
+    indy_rev_reg_def_id: str
+    registration_metadata: TxnResult[RevRegDefTxnData]
+    rev_reg_def_metadata: TxnMetadata
+
+
+@router.post("/rev-reg-def/submit")
+async def post_rev_reg_def_submit(
+    req: SubmitRequest,
+    ledgers: LedgersDep,
+    store: StoreDep,
+    _=Security(Auth.client, scopes=[SCOPE_CRED_DEF]),
+) -> RevRegDefSubmitResponse:
+    """Endorse and submit a cred def txn."""
+    submitter = parse_did_indy(req.submitter)
+    pool = ledgers.get(submitter.namespace)
+    if not pool:
+        raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
+
+    nym, key = await get_nym_and_key(store, submitter.namespace)
+    async with Ledger(pool) as ledger:
+        result = await ledger.endorse_and_submit(
+            request=req.request,
+            submitter=submitter.nym,
+            submitter_signature=req.signature,
+            nym=nym,
+            key=key,
+        )
+        result = TxnResult[RevRegDefTxnData].model_validate(result)
+
+    return RevRegDefSubmitResponse(
+        rev_reg_def_id=make_rev_reg_def_id_from_result(req.submitter, result.txn.data),
+        indy_rev_reg_def_id=make_indy_rev_reg_def_id(
+            submitter.nym, result.txn.data.cred_def_id, "CL_ACCUM", result.txn.data.tag
+        ),
+        registration_metadata=result,
+        rev_reg_def_metadata=result.txnMetadata,
+    )
+
+
+@router.post("/rev-reg-def/endorse")
+async def post_rev_reg_def_endorse(
+    req: SubmitRequest,
+    ledgers: LedgersDep,
+    store: StoreDep,
+    _=Security(Auth.client, scopes=[SCOPE_CRED_DEF]),
+) -> EndorseResponse:
+    """Endorse a Revocation Registry Definition transaction request."""
+    submitter = parse_did_indy(req.submitter)
+    pool = ledgers.get(submitter.namespace)
+
+    if not pool:
+        raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
+
+    nym, key = await get_nym_and_key(store, submitter.namespace)
+    async with Ledger(pool) as ledger:
+        # TODO Make sure it's a Rev Reg Def
         endorsement = await ledger.endorse(req.request, nym, key)
 
     return EndorseResponse(

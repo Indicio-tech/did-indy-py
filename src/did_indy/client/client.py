@@ -8,8 +8,10 @@ from typing import Any, List, Optional
 from did_indy.models.taa import TAAInfo, TaaAcceptance
 from did_indy.driver.api.clients import ClientCreateResponse
 from did_indy.driver.api.txns import (
+    CredDefSubmitResponse,
     EndorseResponse,
     NymResponse,
+    RevRegDefSubmitResponse,
     SchemaSubmitResponse,
     TxnToSignResponse,
 )
@@ -235,7 +237,7 @@ class IndyDriverClient(HTTPClient):
         submitter: str,
         request: str,
         signature: str | bytes,
-    ):
+    ) -> CredDefSubmitResponse:
         """Submit a signed txn."""
         if isinstance(signature, bytes):
             signature = urlsafe_b64encode(signature).decode()
@@ -247,6 +249,7 @@ class IndyDriverClient(HTTPClient):
                 "request": request,
                 "signature": signature,
             },
+            response=CredDefSubmitResponse,
         )
         return result
 
@@ -263,5 +266,42 @@ class IndyDriverClient(HTTPClient):
                 "request": request,
             },
             response=EndorseResponse,
+        )
+        return result
+
+    async def create_rev_reg_def(
+        self,
+        rev_reg_def: dict | str,
+        taa: TaaAcceptance | None = None,
+    ) -> TxnToSignResponse:
+        """Create rev reg def."""
+        result = await self.post(
+            url="/txn/rev-reg-def",
+            json={
+                "rev_reg_def": rev_reg_def,
+                "taa": taa.for_request() if taa else None,
+            },
+            response=TxnToSignResponse,
+        )
+        return result
+
+    async def submit_rev_reg_def(
+        self,
+        submitter: str,
+        request: str,
+        signature: str | bytes,
+    ) -> RevRegDefSubmitResponse:
+        """Submit a signed txn."""
+        if isinstance(signature, bytes):
+            signature = urlsafe_b64encode(signature).decode()
+
+        result = await self.post(
+            url="/txn/rev-reg-def/submit",
+            json={
+                "submitter": submitter,
+                "request": request,
+                "signature": signature,
+            },
+            response=RevRegDefSubmitResponse,
         )
         return result

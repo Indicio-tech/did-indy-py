@@ -16,7 +16,11 @@ from indy_vdr import Pool, Request, VdrError, ledger, open_pool
 from indy_vdr.bindings import dereference, resolve
 
 from did_indy.models.taa import TAAInfo, TAARecord, TaaAcceptance
-from did_indy.models.txn import DereferenceResult, Endorsement, SchemaTxnDataData
+from did_indy.models.txn import (
+    CredDefDeref,
+    Endorsement,
+    SchemaDeref,
+)
 from did_indy.cache import Cache
 from did_indy.config import LocalLedgerGenesis, RemoteLedgerGenesis
 from did_indy.utils import FetchError, fetch
@@ -409,11 +413,17 @@ class BaseLedger:
             raise LedgerTransactionError("Ledger request error") from err
         return result
 
-    async def get_schema(self, schema_id: str) -> DereferenceResult[SchemaTxnDataData]:
+    async def get_schema(self, schema_id: str) -> SchemaDeref:
         """Retrieve schema by ID (DID URL)."""
         result = await self.dereference(schema_id)
-        schema_result = DereferenceResult[SchemaTxnDataData].model_validate(result)
+        schema_result = SchemaDeref.model_validate(result)
         return schema_result
+
+    async def get_cred_def(self, cred_def_id: str) -> CredDefDeref:
+        """Retrieve cred def by ID (DID URL)."""
+        result = await self.dereference(cred_def_id)
+        cred_def_result = CredDefDeref.model_validate(result)
+        return cred_def_result
 
 
 class ReadOnlyLedger(BaseLedger):
