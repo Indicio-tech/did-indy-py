@@ -49,7 +49,7 @@ from did_indy.ledger import (
     LedgerTransactionError,
 )
 from did_indy.driver.ledgers import NymNotFoundError, get_nym_and_key
-from did_indy.driver.security import Auth
+from did_indy.driver.security import client
 from did_indy.driver.taa import get_latest_txn_author_acceptance
 
 router = APIRouter(prefix="/txn", tags=["txn"])
@@ -83,7 +83,7 @@ async def post_nym(
     req: NymRequest,
     ledgers: LedgersDep,
     store: StoreDep,
-    _=Security(Auth.client, scopes=[SCOPE_NYM_NEW]),
+    _=Security(client, scopes=[SCOPE_NYM_NEW]),
 ) -> NymResponse:
     """Create a new nym."""
 
@@ -174,7 +174,7 @@ class TxnToSignResponse(BaseModel):
 async def post_schema(
     req: SchemaRequest,
     store: StoreDep,
-    _=Security(Auth.client, scopes=[SCOPE_SCHEMA]),
+    _=Security(client, scopes=[SCOPE_SCHEMA]),
 ) -> TxnToSignResponse:
     """Create a schema and return a txn for the client to sign and later submit."""
     schema = req.schema_value
@@ -222,7 +222,7 @@ async def post_schema_submit(
     req: SubmitRequest,
     ledgers: LedgersDep,
     store: StoreDep,
-    _=Security(Auth.client, scopes=[SCOPE_SCHEMA]),
+    _=Security(client, scopes=[SCOPE_SCHEMA]),
 ) -> SchemaSubmitResponse:
     """Endorse and submit a txn."""
     submitter = parse_did_indy(req.submitter)
@@ -284,7 +284,7 @@ async def post_schema_endorse(
     req: EndorseRequest,
     ledgers: LedgersDep,
     store: StoreDep,
-    _=Security(Auth.client, scopes=[SCOPE_SCHEMA]),
+    _=Security(client, scopes=[SCOPE_SCHEMA]),
 ) -> EndorseResponse:
     """Endorse a schema."""
     submitter = parse_did_indy(req.submitter)
@@ -342,7 +342,7 @@ async def post_cred_def(
     req: CredDefRequest,
     ledgers: LedgersDep,
     store: StoreDep,
-    _=Security(Auth.client, scopes=[SCOPE_CRED_DEF]),
+    _=Security(client, scopes=[SCOPE_CRED_DEF]),
 ) -> TxnToSignResponse:
     """Create a cred def and return a txn for the client to sign and later submit."""
     if isinstance(req.cred_def, str):
@@ -383,7 +383,7 @@ async def post_cred_def_submit(
     req: SubmitRequest,
     ledgers: LedgersDep,
     store: StoreDep,
-    _=Security(Auth.client, scopes=[SCOPE_CRED_DEF]),
+    _=Security(client, scopes=[SCOPE_CRED_DEF]),
 ) -> CredDefSubmitResponse:
     """Endorse and submit a cred def txn."""
     submitter = parse_did_indy(req.submitter)
@@ -422,7 +422,7 @@ async def post_cred_def_endorse(
     req: SubmitRequest,
     ledgers: LedgersDep,
     store: StoreDep,
-    _=Security(Auth.client, scopes=[SCOPE_CRED_DEF]),
+    _=Security(client, scopes=[SCOPE_CRED_DEF]),
 ) -> EndorseResponse:
     """Endorse a Credential Definition transaction request."""
     submitter = parse_did_indy(req.submitter)
@@ -457,7 +457,7 @@ async def post_rev_reg_def(
     req: RevRegDefRequest,
     store: StoreDep,
     ledgers: LedgersDep,
-    _=Security(Auth.client, scopes=[SCOPE_REV_REG_DEF]),
+    _=Security(client, scopes=[SCOPE_REV_REG_DEF]),
 ) -> TxnToSignResponse:
     """Create a rev reg def and return a txn for the client to sign and later submit."""
     if isinstance(req.rev_reg_def, str):
@@ -500,7 +500,7 @@ async def post_rev_reg_def_submit(
     req: SubmitRequest,
     ledgers: LedgersDep,
     store: StoreDep,
-    _=Security(Auth.client, scopes=[SCOPE_REV_REG_DEF]),
+    _=Security(client, scopes=[SCOPE_REV_REG_DEF]),
 ) -> RevRegDefSubmitResponse:
     """Endorse and submit a cred def txn."""
     submitter = parse_did_indy(req.submitter)
@@ -538,7 +538,7 @@ async def post_rev_reg_def_endorse(
     req: SubmitRequest,
     ledgers: LedgersDep,
     store: StoreDep,
-    _=Security(Auth.client, scopes=[SCOPE_REV_REG_DEF]),
+    _=Security(client, scopes=[SCOPE_REV_REG_DEF]),
 ) -> EndorseResponse:
     """Endorse a Revocation Registry Definition transaction request."""
     submitter = parse_did_indy(req.submitter)
@@ -573,7 +573,7 @@ async def post_rev_status_list(
     req: RevStatusListRequest,
     store: StoreDep,
     ledgers: LedgersDep,
-    _=Security(Auth.client, scopes=[SCOPE_REV_REG_ENTRY]),
+    _=Security(client, scopes=[SCOPE_REV_REG_ENTRY]),
 ) -> TxnToSignResponse:
     """Create a rev status list and return a txn for the client to sign and submit."""
     if isinstance(req.rev_status_list, str):
@@ -614,7 +614,7 @@ async def post_rev_status_list_submit(
     req: SubmitRequest,
     store: StoreDep,
     ledgers: LedgersDep,
-    _=Security(Auth.client, scopes=[SCOPE_REV_REG_ENTRY]),
+    _=Security(client, scopes=[SCOPE_REV_REG_ENTRY]),
 ) -> RevStatusListSubmitResponse:
     """Submit and endorse a revocation status list."""
     submitter = parse_did_indy(req.submitter)
@@ -648,7 +648,7 @@ async def post_rev_status_list_endorse(
     req: SubmitRequest,
     ledgers: LedgersDep,
     store: StoreDep,
-    _=Security(Auth.client, scopes=[SCOPE_REV_REG_ENTRY]),
+    _=Security(client, scopes=[SCOPE_REV_REG_ENTRY]),
 ) -> EndorseResponse:
     """Endorse a Revocation Status List transaction request."""
     submitter = parse_did_indy(req.submitter)
@@ -685,7 +685,7 @@ async def post_rev_status_list_update(
     req: RevStatusListUpdateRequest,
     store: StoreDep,
     ledgers: LedgersDep,
-    _=Security(Auth.client, scopes=[SCOPE_REV_REG_ENTRY]),
+    _=Security(client, scopes=[SCOPE_REV_REG_ENTRY]),
 ) -> TxnToSignResponse:
     """Update a rev status list and return a txn for the client to sign and submit."""
     if isinstance(req.curr_list, str):
@@ -719,7 +719,7 @@ async def post_rev_status_list_update_submit(
     req: SubmitRequest,
     store: StoreDep,
     ledgers: LedgersDep,
-    _=Security(Auth.client, scopes=[SCOPE_REV_REG_ENTRY]),
+    _=Security(client, scopes=[SCOPE_REV_REG_ENTRY]),
 ) -> RevStatusListSubmitResponse:
     """Submit and endorse an update to a revocation status list."""
     submitter = parse_did_indy(req.submitter)
@@ -753,7 +753,7 @@ async def post_rev_status_list_update_endorse(
     req: SubmitRequest,
     ledgers: LedgersDep,
     store: StoreDep,
-    _=Security(Auth.client, scopes=[SCOPE_REV_REG_ENTRY]),
+    _=Security(client, scopes=[SCOPE_REV_REG_ENTRY]),
 ) -> EndorseResponse:
     """Endorse a Revocation Status List update transaction request."""
     submitter = parse_did_indy(req.submitter)

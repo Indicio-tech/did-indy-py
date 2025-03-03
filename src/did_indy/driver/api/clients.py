@@ -7,14 +7,14 @@ from uuid import uuid4
 from secrets import token_urlsafe
 
 from aries_askar import Store
-from fastapi import APIRouter, Depends, HTTPException, Security
+from fastapi import APIRouter, HTTPException, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
 from pydantic import BaseModel, ConfigDict
 
 from did_indy.driver.config import Config
 from did_indy.driver.depends import ConfigDep, StoreDep
-from did_indy.driver.security import Auth
+from did_indy.driver.security import admin
 from did_indy.driver.auto_endorse import ClientAutoEndorseRules
 
 router = APIRouter(prefix="/clients", tags=["clients"])
@@ -66,7 +66,7 @@ async def post_clients(
     req: ClientCreateRequest,
     store: StoreDep,
     config: ConfigDep,
-    _=Security(Auth.admin),
+    _=Security(admin),
 ) -> ClientCreateResponse:
     """Create a client."""
     return await create_client(store, config, req.name, req.auto_endorse)
@@ -77,7 +77,7 @@ async def get_client_token(
     client_id: str,
     store: StoreDep,
     config: ConfigDep,
-    _=Security(Auth.admin),  # TODO permit client to regen?
+    _=Security(admin),  # TODO permit client to regen?
 ) -> ClientCreateResponse:
     """Generate a new token, revoking the previous token."""
     assert config.client_token_secret, "Clients endpoint hit but invalid config"
@@ -118,7 +118,7 @@ async def post_register_token(
     req: ClientCreateRequest,
     store: StoreDep,
     config: ConfigDep,
-    _=Security(Auth.admin),
+    _=Security(admin),
 ) -> ClientRegisterTokenResponse:
     """Generate a client registration token."""
     assert config.client_token_secret, "Clients endpoint hit but invalid config"
@@ -179,7 +179,7 @@ class RegistrationTokenPayload(BaseModel):
 async def post_register(
     store: StoreDep,
     config: ConfigDep,
-    token: HTTPAuthorizationCredentials = Depends(HTTPBearer()),
+    token: HTTPAuthorizationCredentials = Security(HTTPBearer()),
 ) -> ClientCreateResponse:
     assert config.client_token_secret, "Clients endpoint hit but invalid config"
     try:
@@ -213,7 +213,7 @@ async def post_register(
 async def delete_register_token(
     jti: str,
     store: StoreDep,
-    _=Security(Auth.admin),
+    _=Security(admin),
 ) -> str:
     """Delete/revoke a registration token."""
     async with store.session() as session:
@@ -251,7 +251,7 @@ class RegistrationTokenList(BaseModel):
 @router.get("/register/token", summary="List registration token records")
 async def get_register_token(
     store: StoreDep,
-    _=Security(Auth.admin),
+    _=Security(admin),
 ) -> RegistrationTokenList:
     """List registration tokens."""
     async with store.session() as session:

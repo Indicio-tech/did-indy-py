@@ -1,6 +1,8 @@
 """API Security."""
 
-from fastapi import Depends, HTTPException
+import logging
+from typing import Annotated, Protocol
+from fastapi import Depends, HTTPException, Security
 from fastapi.security import (
     APIKeyHeader,
     HTTPAuthorizationCredentials,
@@ -11,11 +13,37 @@ import jwt
 from pydantic import BaseModel, ConfigDict
 
 from did_indy.driver.auto_endorse import ClientAutoEndorseRules, derive_scopes
-from did_indy.driver.config import Config, ConfigError
-from did_indy.driver.depends import StoreDep, get_config
+from did_indy.driver.config import ConfigError
+from did_indy.driver.depends import ConfigDep, StoreDep
 
 
-class InsecureMode:
+LOGGER = logging.getLogger(__name__)
+API_KEY = APIKeyHeader(name="x-api-key", auto_error=False)
+BEARER = HTTPBearer(auto_error=False)
+
+
+class AuthMethod(Protocol):
+    """Authentication method."""
+
+    async def admin(
+        self,
+        key: str = Security(API_KEY),
+    ):
+        """Check validity of API Key for admin operations."""
+        ...
+
+    async def client(
+        self,
+        security_scopes: SecurityScopes,
+        store: StoreDep,
+        key: str = Security(API_KEY),
+        token: HTTPAuthorizationCredentials = Security(BEARER),
+    ):
+        """Check validity of API Key for client operations."""
+        ...
+
+
+class InsecureMode(AuthMethod):
     """No authentication mode.
 
     This is for testing only; do not use this.
@@ -23,23 +51,28 @@ class InsecureMode:
 
     async def admin(
         self,
+        key: str = Security(API_KEY),
     ):
         """Check validity of API Key for admin operations."""
         return
 
-    async def client(self):
+    async def client(
+        self,
+        security_scopes: SecurityScopes,
+        store: StoreDep,
+        key: str = Security(API_KEY),
+        token: HTTPAuthorizationCredentials = Security(BEARER),
+    ):
         """Check validity of API Key for client operations."""
         return
 
 
-class APIKey:
+class APIKey(AuthMethod):
     """Secure the API by API Key.
 
     This mode might be useful for simple deployments where only a single client
     is expected.
     """
-
-    HEADER = APIKeyHeader(name="x-api-key")
 
     def __init__(self, admin_key: str, client_key: str | None = None):
         """API Key auth."""
@@ -48,13 +81,19 @@ class APIKey:
 
     async def admin(
         self,
-        key: str = Depends(HEADER),
+        key: str = Security(API_KEY),
     ):
         """Check validity of API Key for admin operations."""
         if key != self.admin_key:
             raise HTTPException(401)
 
-    async def client(self, key: str = Depends(HEADER)):
+    async def client(
+        self,
+        security_scopes: SecurityScopes,
+        store: StoreDep,
+        key: str = Security(API_KEY),
+        token: HTTPAuthorizationCredentials = Security(BEARER),
+    ):
         """Check validity of API Key for client operations."""
         if key != self.client_key:
             raise HTTPException(401)
@@ -70,15 +109,12 @@ class ClientToken(BaseModel):
     nonce: str
 
 
-class AdminAPIKeyClientToken:
+class AdminAPIKeyClientToken(AuthMethod):
     """Secure the API with a combination of Admin API Key and Client Tokens.
 
     This mode might be useful for deployments where only a single admin is expected
     but many clients.
     """
-
-    API_KEY = APIKeyHeader(name="x-api-key")
-    BEARER = HTTPBearer()
 
     def __init__(self, admin_key: str, secret: str):
         """API Key auth."""
@@ -87,7 +123,7 @@ class AdminAPIKeyClientToken:
 
     async def admin(
         self,
-        key: str = Depends(API_KEY),
+        key: str = Security(API_KEY),
     ):
         """Check validity of API Key for admin operations."""
         if key != self.admin_key:
@@ -97,7 +133,8 @@ class AdminAPIKeyClientToken:
         self,
         security_scopes: SecurityScopes,
         store: StoreDep,
-        token: HTTPAuthorizationCredentials = Depends(BEARER),
+        key: str = Security(API_KEY),
+        token: HTTPAuthorizationCredentials = Security(BEARER),
     ):
         """Check client tokens for client operations."""
         try:
@@ -128,7 +165,7 @@ class AdminAPIKeyClientToken:
                 raise HTTPException(403, "Insufficient scope")
 
 
-def auth_provider(config: Config):
+def auth_provider(config: ConfigDep) -> AuthMethod:
     """Provide authentication mechanism based on config."""
     if config.auth == "insecure":
         return InsecureMode()
@@ -148,8 +185,23 @@ def auth_provider(config: Config):
         raise ConfigError(f"Invalid auth mode {config.auth}")
 
 
-try:
-    Auth = auth_provider(get_config())
-except RuntimeError:
-    # This is to enable importing models from api modules from the client
-    Auth = InsecureMode()
+AuthDep = Annotated[AuthMethod, Depends(auth_provider)]
+
+
+async def admin(
+    auth: AuthDep,
+    key: str = Security(API_KEY),
+):
+    """Authenticate admin."""
+    return await auth.admin(key)
+
+
+async def client(
+    security_scopes: SecurityScopes,
+    store: StoreDep,
+    auth: AuthDep,
+    key: str = Security(API_KEY),
+    token: HTTPAuthorizationCredentials = Security(BEARER),
+):
+    """Authenticate clients."""
+    return await auth.client(security_scopes, store, key, token)
