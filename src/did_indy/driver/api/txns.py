@@ -26,6 +26,7 @@ from did_indy.anoncreds import (
     indy_cred_def_request,
     indy_rev_reg_def_request,
     indy_rev_reg_entry_request,
+    indy_rev_reg_initial_entry_request,
     indy_schema_request,
     make_indy_rev_reg_def_id,
     make_rev_reg_def_id_from_result,
@@ -562,7 +563,7 @@ async def post_rev_status_list(
     if not pool:
         raise HTTPException(404, f"No ledger known for namespace {submitter.namespace}")
 
-    request = indy_rev_reg_entry_request(req.rev_status_list)
+    request = indy_rev_reg_initial_entry_request(req.rev_status_list)
     request.set_endorser(nym)
     if req.taa:
         request.set_txn_author_agreement_acceptance(req.taa.for_request())
@@ -627,7 +628,112 @@ async def post_rev_status_list_endorse(
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
     async with Ledger(pool) as ledger:
-        # TODO Make sure it's a Rev Reg Def
+        # TODO Make sure it's an initial Rev Reg Entry
+        endorsement = await ledger.endorse(req.request, nym, key)
+
+    return EndorseResponse(
+        nym=endorsement.nym,
+        signature=base64.urlsafe_b64encode(endorsement.signature).decode(),
+    )
+
+
+class RevStatusListUpdateRequest(BaseModel):
+    """Revocation Status List update request."""
+
+    prev_accum: str
+    curr_list: RevStatusList | str
+    revoked: list[int]
+    taa: TaaAcceptance | None = None
+
+
+@router.post("/rev-status-list/update")
+async def post_rev_status_list_update(
+    req: RevStatusListUpdateRequest,
+    store: StoreDep,
+    ledgers: LedgersDep,
+    _=Security(Auth.client, scopes=[SCOPE_REV_REG_ENTRY]),
+) -> TxnToSignResponse:
+    """Update a rev status list and return a txn for the client to sign and submit."""
+    if isinstance(req.curr_list, str):
+        req.curr_list = RevStatusList.model_validate_json(req.curr_list)
+
+    submitter = parse_did_indy(req.curr_list.issuer_id)
+    try:
+        nym, _ = await get_nym_and_key(store, submitter.namespace)
+    except NymNotFoundError as error:
+        raise HTTPException(
+            404, f"Unrecognized namespace {submitter.namespace}"
+        ) from error
+
+    pool = ledgers.get(submitter.namespace)
+    if not pool:
+        raise HTTPException(404, f"No ledger known for namespace {submitter.namespace}")
+
+    request = indy_rev_reg_entry_request(req.prev_accum, req.curr_list, req.revoked)
+    request.set_endorser(nym)
+    if req.taa:
+        request.set_txn_author_agreement_acceptance(req.taa.for_request())
+
+    return TxnToSignResponse(
+        request=request.body,
+        signature_input=base64.urlsafe_b64encode(request.signature_input).decode(),
+    )
+
+
+class RevStatusListSubmitResponse(BaseModel):
+    """Response to rev status list submit."""
+
+    registration_metadata: TxnResult[RevRegEntryTxnData]
+    rev_status_list_metadata: TxnMetadata
+
+
+@router.post("/rev-status-list/update/submit")
+async def post_rev_status_list_update_submit(
+    req: SubmitRequest,
+    store: StoreDep,
+    ledgers: LedgersDep,
+    _=Security(Auth.client, scopes=[SCOPE_REV_REG_ENTRY]),
+) -> RevStatusListSubmitResponse:
+    """Submit and endorse an update to a revocation status list."""
+    submitter = parse_did_indy(req.submitter)
+    pool = ledgers.get(submitter.namespace)
+    if not pool:
+        raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
+
+    nym, key = await get_nym_and_key(store, submitter.namespace)
+    async with Ledger(pool) as ledger:
+        result = await ledger.endorse_and_submit(
+            request=req.request,
+            submitter=submitter.nym,
+            submitter_signature=req.signature,
+            nym=nym,
+            key=key,
+        )
+        result = TxnResult[RevRegEntryTxnData].model_validate(result)
+
+    return RevStatusListSubmitResponse(
+        registration_metadata=result,
+        rev_status_list_metadata=result.txnMetadata,
+    )
+
+
+@router.post("/rev-status-list/update/endorse")
+async def post_rev_status_list_update_endorse(
+    req: SubmitRequest,
+    ledgers: LedgersDep,
+    store: StoreDep,
+    _=Security(Auth.client, scopes=[SCOPE_REV_REG_ENTRY]),
+) -> EndorseResponse:
+    """Endorse a Revocation Status List update transaction request."""
+    submitter = parse_did_indy(req.submitter)
+    pool = ledgers.get(submitter.namespace)
+
+    if not pool:
+        raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
+
+    nym, key = await get_nym_and_key(store, submitter.namespace)
+    async with Ledger(pool) as ledger:
+        # TODO Make sure it's a Rev Reg Entry
         endorsement = await ledger.endorse(req.request, nym, key)
 
     return EndorseResponse(

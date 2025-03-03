@@ -343,3 +343,44 @@ class IndyDriverClient(HTTPClient):
             response=RevStatusListSubmitResponse,
         )
         return result
+
+    async def update_rev_status_list(
+        self,
+        prev_accum: str,
+        curr_list: dict | str,
+        revoked: list[int],
+        taa: TaaAcceptance | None = None,
+    ) -> TxnToSignResponse:
+        """Create revocation status list."""
+        result = await self.post(
+            url="/txn/rev-status-list/update",
+            json={
+                "prev_accum": prev_accum,
+                "curr_list": curr_list,
+                "revoked": revoked,
+                "taa": taa.for_request() if taa else None,
+            },
+            response=TxnToSignResponse,
+        )
+        return result
+
+    async def submit_rev_status_list_update(
+        self,
+        submitter: str,
+        request: str,
+        signature: str | bytes,
+    ) -> RevStatusListSubmitResponse:
+        """Submit a signed txn."""
+        if isinstance(signature, bytes):
+            signature = urlsafe_b64encode(signature).decode()
+
+        result = await self.post(
+            url="/txn/rev-status-list/update/submit",
+            json={
+                "submitter": submitter,
+                "request": request,
+                "signature": signature,
+            },
+            response=RevStatusListSubmitResponse,
+        )
+        return result

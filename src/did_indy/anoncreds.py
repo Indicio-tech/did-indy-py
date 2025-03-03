@@ -197,10 +197,10 @@ def indy_rev_reg_def_request(
     return request
 
 
-def indy_rev_reg_entry_request(
+def indy_rev_reg_initial_entry_request(
     status_list: RevStatusList | RevocationStatusList | dict,
 ) -> Request:
-    """Create a revocation entry request."""
+    """Create an initial revocation entry request."""
     if isinstance(status_list, RevocationStatusList):
         status_list = status_list.to_dict()
     if isinstance(status_list, RevStatusList):
@@ -220,4 +220,41 @@ def indy_rev_reg_entry_request(
         "CL_ACCUM",
         indy_rev_reg_entry,
     )
+    return request
+
+
+def indy_rev_reg_entry_request(
+    prev_accum: str,
+    curr_list: RevStatusList | RevocationStatusList | dict,
+    revoked: list[int],
+) -> Request:
+    """Create a revocation entry request."""
+    if isinstance(curr_list, RevocationStatusList):
+        curr_list = curr_list.to_dict()
+    elif isinstance(curr_list, RevStatusList):
+        curr_list = curr_list.model_dump(by_alias=True)
+    elif isinstance(curr_list, dict):
+        pass
+    else:
+        raise ValueError("Invalid value for curr_list")
+
+    submitter = curr_list["issuerId"]
+    if submitter.startswith("did:indy:"):
+        submitter = parse_did_indy(submitter).nym
+
+    indy_rev_reg_entry = {
+        "ver": "1.0",
+        "value": {
+            "accum": curr_list["currentAccumulator"],
+            "prevAccum": prev_accum,
+            "revoked": revoked,
+        },
+    }
+    request = ledger.build_revoc_reg_entry_request(
+        submitter,
+        make_indy_rev_reg_def_id_from_did_url(curr_list["revRegDefId"]),
+        "CL_ACCUM",
+        indy_rev_reg_entry,
+    )
+
     return request

@@ -55,8 +55,20 @@ class RevRegDefTxnData(BaseModel):
     value: RevRegDefTxnDataValue
 
 
+class RevRegEntryTxnDataValue(BaseModel):
+    """Rev Reg Entry Value."""
+
+    accum: str
+    prev_accum: str | None = Field(None, alias="prevAccum")
+    revoked: list[int] | None = None
+
+
 class RevRegEntryTxnData(BaseModel):
     """Rev Reg Entry Transaction txn.data."""
+
+    revoc_def_type: Literal["CL_ACCUM"] = Field(alias="revocDefType")
+    revoc_reg_def_id: str = Field(alias="revocRegDefId")
+    value: RevRegEntryTxnDataValue
 
 
 TxnData = TypeVar("TxnData", bound=BaseModel)

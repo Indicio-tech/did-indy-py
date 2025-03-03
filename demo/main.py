@@ -2,6 +2,7 @@
 
 import asyncio
 from dataclasses import dataclass
+from time import time
 from hashlib import sha256
 import logging
 from os import getenv
@@ -112,9 +113,10 @@ async def thin():
     sig = nym.key.sign_message(result.get_signature_input_bytes())
     result = await client.submit_rev_reg_def(did, result.request, sig)
 
+    rev_reg_def_id = result.rev_reg_def_id
     revocation_list = RevocationStatusList.create(
         cred_def=cred_def,
-        rev_reg_def_id=result.rev_reg_def_id,
+        rev_reg_def_id=rev_reg_def_id,
         rev_reg_def=rev_reg_def,
         rev_reg_def_private=private,
         issuer_id=did,
@@ -122,6 +124,24 @@ async def thin():
     result = await client.create_rev_status_list(revocation_list.to_dict(), taa=taa)
     sig = nym.key.sign_message(result.get_signature_input_bytes())
     result = await client.submit_rev_status_list(did, result.request, sig)
+
+    next_list = revocation_list.update(
+        cred_def=cred_def,
+        rev_reg_def=rev_reg_def,
+        rev_reg_def_private=private,
+        issued=None,
+        revoked=[1],
+        timestamp=int(time()),
+    )
+
+    result = await client.update_rev_status_list(
+        prev_accum=revocation_list.to_dict()["currentAccumulator"],
+        curr_list=next_list.to_dict(),
+        revoked=[1],
+        taa=taa,
+    )
+    sig = nym.key.sign_message(result.get_signature_input_bytes())
+    result = await client.submit_rev_status_list_update(did, result.request, sig)
     print(result)
 
 
