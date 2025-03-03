@@ -142,7 +142,6 @@ async def thin():
     )
     sig = nym.key.sign_message(result.get_signature_input_bytes())
     result = await client.submit_rev_status_list_update(did, result.request, sig)
-    print(result)
 
 
 async def thick():

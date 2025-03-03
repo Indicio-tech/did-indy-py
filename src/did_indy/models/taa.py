@@ -1,6 +1,6 @@
 """TAA Models."""
 
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class TAARecord(BaseModel):
@@ -18,7 +18,10 @@ class TAAInfo(BaseModel):
 class TaaAcceptance(BaseModel):
     """TAA Acceptance data."""
 
-    taaDigest: str
+    taaDigest: str = Field(
+        validation_alias=AliasChoices("taa_digest", "digest", "taaDigest"),
+        serialization_alias="taaDigest",
+    )
     mechanism: str
     time: int
 

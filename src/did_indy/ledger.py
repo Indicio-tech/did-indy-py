@@ -429,7 +429,6 @@ class BaseLedger:
     async def get_rev_reg_def(self, rev_reg_def_id: str) -> RevRegDefDeref:
         """Retrieve a rev reg def by ID (DID URL)."""
         result = await self.dereference(rev_reg_def_id)
-        print(result)
         rev_reg_def_result = RevRegDefDeref.model_validate(result)
         return rev_reg_def_result
 

@@ -15,11 +15,16 @@ from did_indy.did import nym_from_verkey, parse_did_indy
 from did_indy.models.anoncreds import CredDef, RevRegDef, RevStatusList, Schema
 from did_indy.models.taa import TaaAcceptance
 from did_indy.models.txn import (
+    CredDefOperation,
     CredDefTxnData,
+    RevRegDefOperation,
     RevRegDefTxnData,
+    RevRegEntryOperation,
     RevRegEntryTxnData,
+    SchemaOperation,
     SchemaTxnData,
     TxnMetadata,
+    TxnRequest,
     TxnResult,
 )
 from did_indy.anoncreds import (
@@ -226,6 +231,11 @@ async def post_schema_submit(
         raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
+
+    request = TxnRequest[SchemaOperation].model_validate_json(req.request)
+    if request.endorser != nym:
+        raise HTTPException(400, detail="Incorrect endorser nym on request")
+
     async with Ledger(pool) as ledger:
         result = await ledger.endorse_and_submit(
             request=req.request,
@@ -283,8 +293,11 @@ async def post_schema_endorse(
         raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
+    request = TxnRequest[SchemaOperation].model_validate_json(req.request)
+    if request.endorser != nym:
+        raise HTTPException(400, detail="Incorrect endorser nym on request")
+
     async with Ledger(pool) as ledger:
-        # TODO Make sure it's a schema
         endorsement = await ledger.endorse(req.request, nym, key)
 
     return EndorseResponse(
@@ -379,6 +392,11 @@ async def post_cred_def_submit(
         raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
+
+    request = TxnRequest[CredDefOperation].model_validate_json(req.request)
+    if request.endorser != nym:
+        raise HTTPException(400, detail="Incorrect endorser nym on request")
+
     async with Ledger(pool) as ledger:
         result = await ledger.endorse_and_submit(
             request=req.request,
@@ -414,8 +432,11 @@ async def post_cred_def_endorse(
         raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
+    request = TxnRequest[CredDefOperation].model_validate_json(req.request)
+    if request.endorser != nym:
+        raise HTTPException(400, detail="Incorrect endorser nym on request")
+
     async with Ledger(pool) as ledger:
-        # TODO Make sure it's a Cred Def
         endorsement = await ledger.endorse(req.request, nym, key)
 
     return EndorseResponse(
@@ -488,6 +509,10 @@ async def post_rev_reg_def_submit(
         raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
+    request = TxnRequest[RevRegDefOperation].model_validate_json(req.request)
+    if request.endorser != nym:
+        raise HTTPException(400, detail="Incorrect endorser nym on request")
+
     async with Ledger(pool) as ledger:
         result = await ledger.endorse_and_submit(
             request=req.request,
@@ -523,8 +548,11 @@ async def post_rev_reg_def_endorse(
         raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
+    request = TxnRequest[RevRegDefOperation].model_validate_json(req.request)
+    if request.endorser != nym:
+        raise HTTPException(400, detail="Incorrect endorser nym on request")
+
     async with Ledger(pool) as ledger:
-        # TODO Make sure it's a Rev Reg Def
         endorsement = await ledger.endorse(req.request, nym, key)
 
     return EndorseResponse(
@@ -595,6 +623,10 @@ async def post_rev_status_list_submit(
         raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
+    request = TxnRequest[RevRegEntryOperation].model_validate_json(req.request)
+    if request.endorser != nym:
+        raise HTTPException(400, detail="Incorrect endorser nym on request")
+
     async with Ledger(pool) as ledger:
         result = await ledger.endorse_and_submit(
             request=req.request,
@@ -603,7 +635,6 @@ async def post_rev_status_list_submit(
             nym=nym,
             key=key,
         )
-        print(result)
         result = TxnResult[RevRegEntryTxnData].model_validate(result)
 
     return RevStatusListSubmitResponse(
@@ -627,8 +658,11 @@ async def post_rev_status_list_endorse(
         raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
+    request = TxnRequest[RevRegEntryOperation].model_validate_json(req.request)
+    if request.endorser != nym:
+        raise HTTPException(400, detail="Incorrect endorser nym on request")
+
     async with Ledger(pool) as ledger:
-        # TODO Make sure it's an initial Rev Reg Entry
         endorsement = await ledger.endorse(req.request, nym, key)
 
     return EndorseResponse(
@@ -680,13 +714,6 @@ async def post_rev_status_list_update(
     )
 
 
-class RevStatusListSubmitResponse(BaseModel):
-    """Response to rev status list submit."""
-
-    registration_metadata: TxnResult[RevRegEntryTxnData]
-    rev_status_list_metadata: TxnMetadata
-
-
 @router.post("/rev-status-list/update/submit")
 async def post_rev_status_list_update_submit(
     req: SubmitRequest,
@@ -701,6 +728,10 @@ async def post_rev_status_list_update_submit(
         raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
+    request = TxnRequest[RevRegEntryOperation].model_validate_json(req.request)
+    if request.endorser != nym:
+        raise HTTPException(400, detail="Incorrect endorser nym on request")
+
     async with Ledger(pool) as ledger:
         result = await ledger.endorse_and_submit(
             request=req.request,
@@ -732,8 +763,11 @@ async def post_rev_status_list_update_endorse(
         raise HTTPException(404, f"Unrecognized namespace {submitter.namespace}")
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
+    request = TxnRequest[RevRegEntryOperation].model_validate_json(req.request)
+    if request.endorser != nym:
+        raise HTTPException(400, detail="Incorrect endorser nym on request")
+
     async with Ledger(pool) as ledger:
-        # TODO Make sure it's a Rev Reg Entry
         endorsement = await ledger.endorse(req.request, nym, key)
 
     return EndorseResponse(
