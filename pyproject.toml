@@ -1,7 +1,7 @@
 [project]
-name = "driver-did-indy"
+name = "did-indy-py"
 version = "0.1.0"
-description = "did:indy driver implementing the DID Registration Interface"
+description = "did:indy library including a driver implementing the DID Registration Interface"
 authors = [
     {name = "Daniel Bluhm", email = "dbluhm@pm.me"},
 ]
