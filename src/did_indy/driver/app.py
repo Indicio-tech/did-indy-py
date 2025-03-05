@@ -61,15 +61,39 @@ app = FastAPI(
                 "description": "Specification",
                 "url": "https://identity.foundation/did-registration",
             },
-        }
+        },
+        {
+            "name": "Clients",
+            "description": "Client registration and management",
+        },
+        {
+            "name": "Config",
+            "description": "Driver configuration",
+        },
+        {
+            "name": "TAA",
+            "description": "Transaction author agreement",
+        },
+        {
+            "name": "Nym",
+            "description": "Nym creation and updates",
+        },
+        {
+            "name": "Transaction",
+            "description": "Transaction creation and submission (for lite clients)",
+        },
+        {
+            "name": "Endorse",
+            "description": "Transaction endorsement (for full clients)",
+        },
     ],
     webhooks=webhooks,
     lifespan=lifespan,
 )
 
-app.include_router(txns.router)
-app.include_router(namespaces.router)
-
 config = Config()  # type: ignore
 if config.auth == "client-tokens":
     app.include_router(clients.router)
+
+app.include_router(namespaces.router)
+app.include_router(txns.router)

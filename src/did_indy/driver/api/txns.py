@@ -56,7 +56,7 @@ from did_indy.driver.ledgers import NymNotFoundError, get_nym_and_key
 from did_indy.driver.security import client
 from did_indy.driver.taa import get_latest_txn_author_acceptance
 
-router = APIRouter(prefix="/txn", tags=["txn"])
+router = APIRouter(prefix="/txn")
 LOGGER = logging.getLogger(__name__)
 
 
@@ -82,7 +82,7 @@ class NymResponse(BaseModel):
     diddocContent: Mapping[str, Any] | None = None
 
 
-@router.post("/nym")
+@router.post("/nym", tags=["Nym"], summary="Create a new nym")
 async def post_nym(
     req: NymRequest,
     ledgers: LedgersDep,
@@ -164,13 +164,17 @@ class TxnToSignResponse(BaseModel):
         return base64.urlsafe_b64decode(self.signature_input)
 
 
-@router.post("/schema")
+@router.post(
+    "/schema",
+    tags=["Transaction"],
+    summary="Create a schema transaction ready for signing",
+)
 async def post_schema(
     req: SchemaRequest,
     store: StoreDep,
     _=Security(client, scopes=[SCOPE_SCHEMA]),
 ) -> TxnToSignResponse:
-    """Create a schema and return a txn for the client to sign and later submit."""
+    """Create a schema transaction for the client to sign and later submit."""
     schema = req.schema_value
     if isinstance(schema, str):
         schema = Schema.model_validate_json(schema)
@@ -211,14 +215,22 @@ class SchemaSubmitResponse(BaseModel):
     schema_metadata: TxnMetadata
 
 
-@router.post("/schema/submit")
+@router.post(
+    "/schema/submit",
+    tags=["Transaction"],
+    summary="Endorse and submit a schema transaction",
+)
 async def post_schema_submit(
     req: SubmitRequest,
     ledgers: LedgersDep,
     store: StoreDep,
     _=Security(client, scopes=[SCOPE_SCHEMA]),
 ) -> SchemaSubmitResponse:
-    """Endorse and submit a txn."""
+    """Endorse and submit a schema transaction.
+
+    The did:indy driver will both endorse and submit the transaction to the network on
+    behalf of the author.
+    """
     submitter = parse_did_indy(req.submitter)
     pool = ledgers.get(submitter.namespace)
     if not pool:
@@ -273,14 +285,18 @@ class EndorseResponse(BaseModel):
         return base64.urlsafe_b64decode(self.signature)
 
 
-@router.post("/schema/endorse")
+@router.post(
+    "/schema/endorse",
+    tags=["Endorse"],
+    summary="Request endorsement of a schema transaction",
+)
 async def post_schema_endorse(
     req: EndorseRequest,
     ledgers: LedgersDep,
     store: StoreDep,
     _=Security(client, scopes=[SCOPE_SCHEMA]),
 ) -> EndorseResponse:
-    """Endorse a schema."""
+    """Request endorsement of a schema transaction request."""
     submitter = parse_did_indy(req.submitter)
     pool = ledgers.get(submitter.namespace)
     if not pool:
@@ -316,14 +332,18 @@ class CredDefSubmitResponse(BaseModel):
     cred_def_metadata: TxnMetadata
 
 
-@router.post("/cred-def")
+@router.post(
+    "/cred-def",
+    tags=["Transaction"],
+    summary="Create a cred def transaction ready for signing",
+)
 async def post_cred_def(
     req: CredDefRequest,
     ledgers: LedgersDep,
     store: StoreDep,
     _=Security(client, scopes=[SCOPE_CRED_DEF]),
 ) -> TxnToSignResponse:
-    """Create a cred def and return a txn for the client to sign and later submit."""
+    """Create a cred def transaction and return for client to sign and later submit."""
     if isinstance(req.cred_def, str):
         req.cred_def = CredDef.model_validate_json(req.cred_def)
 
@@ -357,14 +377,18 @@ async def post_cred_def(
     )
 
 
-@router.post("/cred-def/submit")
+@router.post(
+    "/cred-def/submit",
+    tags=["Transaction"],
+    summary="Endorse and submit a cred def transaction",
+)
 async def post_cred_def_submit(
     req: SubmitRequest,
     ledgers: LedgersDep,
     store: StoreDep,
     _=Security(client, scopes=[SCOPE_CRED_DEF]),
 ) -> CredDefSubmitResponse:
-    """Endorse and submit a cred def txn."""
+    """Endorse and submit a cred def transaction."""
     submitter = parse_did_indy(req.submitter)
     pool = ledgers.get(submitter.namespace)
     if not pool:
@@ -396,14 +420,18 @@ async def post_cred_def_submit(
     )
 
 
-@router.post("/cred-def/endorse")
+@router.post(
+    "/cred-def/endorse",
+    tags=["Endorse"],
+    summary="Request endorsement of a cred def transaction",
+)
 async def post_cred_def_endorse(
     req: EndorseRequest,
     ledgers: LedgersDep,
     store: StoreDep,
     _=Security(client, scopes=[SCOPE_CRED_DEF]),
 ) -> EndorseResponse:
-    """Endorse a Credential Definition transaction request."""
+    """Request endorsement of a Credential Definition transaction request."""
     submitter = parse_did_indy(req.submitter)
     pool = ledgers.get(submitter.namespace)
 
@@ -431,14 +459,18 @@ class RevRegDefRequest(BaseModel):
     taa: TaaAcceptance | None = None
 
 
-@router.post("/rev-reg-def")
+@router.post(
+    "/rev-reg-def",
+    tags=["Transaction"],
+    summary="Create a rev reg def transaction ready for signing",
+)
 async def post_rev_reg_def(
     req: RevRegDefRequest,
     store: StoreDep,
     ledgers: LedgersDep,
     _=Security(client, scopes=[SCOPE_REV_REG_DEF]),
 ) -> TxnToSignResponse:
-    """Create a rev reg def and return a txn for the client to sign and later submit."""
+    """Create a rev reg def transaction and return for client to sign and later submit."""
     if isinstance(req.rev_reg_def, str):
         req.rev_reg_def = RevRegDef.model_validate_json(req.rev_reg_def)
 
@@ -474,14 +506,18 @@ class RevRegDefSubmitResponse(BaseModel):
     rev_reg_def_metadata: TxnMetadata
 
 
-@router.post("/rev-reg-def/submit")
+@router.post(
+    "/rev-reg-def/submit",
+    tags=["Transaction"],
+    summary="Endorse and submit a rev reg def transaction",
+)
 async def post_rev_reg_def_submit(
     req: SubmitRequest,
     ledgers: LedgersDep,
     store: StoreDep,
     _=Security(client, scopes=[SCOPE_REV_REG_DEF]),
 ) -> RevRegDefSubmitResponse:
-    """Endorse and submit a cred def txn."""
+    """Endorse and submit a rev reg def transaction."""
     submitter = parse_did_indy(req.submitter)
     pool = ledgers.get(submitter.namespace)
     if not pool:
@@ -512,7 +548,11 @@ async def post_rev_reg_def_submit(
     )
 
 
-@router.post("/rev-reg-def/endorse")
+@router.post(
+    "/rev-reg-def/endorse",
+    tags=["Endorse"],
+    summary="Request endorsement of a rev reg def transaction",
+)
 async def post_rev_reg_def_endorse(
     req: EndorseRequest,
     ledgers: LedgersDep,
@@ -547,14 +587,21 @@ class RevStatusListRequest(BaseModel):
     taa: TaaAcceptance | None = None
 
 
-@router.post("/rev-status-list")
+@router.post(
+    "/rev-status-list",
+    tags=["Transaction"],
+    summary="Create a revocation status list transaction ready for signing",
+)
 async def post_rev_status_list(
     req: RevStatusListRequest,
     store: StoreDep,
     ledgers: LedgersDep,
     _=Security(client, scopes=[SCOPE_REV_REG_ENTRY]),
 ) -> TxnToSignResponse:
-    """Create a rev status list and return a txn for the client to sign and submit."""
+    """Create a rev status list and return a txn for the client to sign and submit.
+
+    In indy terms, this will create a rev reg entry transaction.
+    """
     if isinstance(req.rev_status_list, str):
         req.rev_status_list = RevStatusList.model_validate_json(req.rev_status_list)
 
@@ -588,7 +635,11 @@ class RevStatusListSubmitResponse(BaseModel):
     rev_status_list_metadata: TxnMetadata
 
 
-@router.post("/rev-status-list/submit")
+@router.post(
+    "/rev-status-list/submit",
+    tags=["Transaction"],
+    summary="Endorse and submit a rev status list transaction",
+)
 async def post_rev_status_list_submit(
     req: SubmitRequest,
     store: StoreDep,
@@ -622,7 +673,11 @@ async def post_rev_status_list_submit(
     )
 
 
-@router.post("/rev-status-list/endorse")
+@router.post(
+    "/rev-status-list/endorse",
+    tags=["Endorse"],
+    summary="Request endorsement of a rev status list transaction",
+)
 async def post_rev_status_list_endorse(
     req: EndorseRequest,
     ledgers: LedgersDep,
@@ -659,14 +714,18 @@ class RevStatusListUpdateRequest(BaseModel):
     taa: TaaAcceptance | None = None
 
 
-@router.post("/rev-status-list/update")
+@router.post(
+    "/rev-status-list/update",
+    tags=["Transaction"],
+    summary="Create a rev status list update transaction ready for signing",
+)
 async def post_rev_status_list_update(
     req: RevStatusListUpdateRequest,
     store: StoreDep,
     ledgers: LedgersDep,
     _=Security(client, scopes=[SCOPE_REV_REG_ENTRY]),
 ) -> TxnToSignResponse:
-    """Update a rev status list and return a txn for the client to sign and submit."""
+    """Update a rev status list, generate a txn, and return for sign and submit."""
     if isinstance(req.curr_list, str):
         req.curr_list = RevStatusList.model_validate_json(req.curr_list)
 
@@ -693,7 +752,11 @@ async def post_rev_status_list_update(
     )
 
 
-@router.post("/rev-status-list/update/submit")
+@router.post(
+    "/rev-status-list/update/submit",
+    tags=["Transaction"],
+    summary="Endorse and submit a rev status list update transaction",
+)
 async def post_rev_status_list_update_submit(
     req: SubmitRequest,
     store: StoreDep,
@@ -727,7 +790,11 @@ async def post_rev_status_list_update_submit(
     )
 
 
-@router.post("/rev-status-list/update/endorse")
+@router.post(
+    "/rev-status-list/update/endorse",
+    tags=["Endorse"],
+    summary="Request endorsement of a rev status list update transaction",
+)
 async def post_rev_status_list_update_endorse(
     req: EndorseRequest,
     ledgers: LedgersDep,

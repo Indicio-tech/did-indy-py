@@ -28,7 +28,7 @@ class NamespaceList(BaseModel):
     namespaces: List[NamespaceInfo]
 
 
-@router.get("/info")
+@router.get("/info", tags=["Config"], summary="Retrieve driver info")
 async def get_info(ledgers: LedgersDep, store: StoreDep) -> NamespaceList:
     """Return loaded namespaces."""
     results = []
@@ -44,7 +44,7 @@ async def get_info(ledgers: LedgersDep, store: StoreDep) -> NamespaceList:
     return NamespaceList(namespaces=results)
 
 
-@router.get("/taa/{namespace}", tags=["taa"])
+@router.get("/taa/{namespace}", tags=["TAA"], summary="Retrieve TAA for a namespace")
 async def get_taa(namespace: str, ledgers: LedgersDep) -> TAAInfo:
     """Get TAA for namespace."""
     pool = ledgers.get(namespace)

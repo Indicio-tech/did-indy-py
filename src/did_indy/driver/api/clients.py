@@ -17,7 +17,7 @@ from did_indy.driver.depends import ConfigDep, StoreDep
 from did_indy.driver.security import admin
 from did_indy.driver.auto_endorse import ClientAutoEndorseRules
 
-router = APIRouter(prefix="/clients", tags=["clients"])
+router = APIRouter(prefix="/clients", tags=["Clients"])
 
 
 class ClientCreateRequest(BaseModel):
@@ -61,7 +61,7 @@ async def create_client(
     return ClientCreateResponse(client_id=client_id, name=name, token=token)
 
 
-@router.post("", summary="Registar a new client")
+@router.post("", summary="Register a new client")
 async def post_clients(
     req: ClientCreateRequest,
     store: StoreDep,
