@@ -479,6 +479,8 @@ class Ledger(BaseLedger):
         request: str | Request,
         key: Key,
         taa: TaaAcceptance | None = None,
+        *,
+        endorsement: Endorsement | None = None,
     ) -> dict:
         """Sign and submit request to ledger.
 
@@ -503,7 +505,14 @@ class Ledger(BaseLedger):
         if taa:
             request.set_txn_author_agreement_acceptance(taa.for_request())
 
+        if endorsement:
+            request.set_endorser(endorsement.nym)
+
         request.set_signature(key.sign_message(request.signature_input))
+
+        if endorsement:
+            request.set_multi_signature(endorsement.nym, endorsement.signature)
+
         LOGGER.debug(request.body)
 
         request_result = await self.pool.handle.submit_request(request)
