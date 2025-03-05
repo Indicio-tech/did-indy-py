@@ -1,11 +1,12 @@
 """AnonCreds Indy support functions."""
 
 import logging
+from typing import Any
 
 from anoncreds import (
     CredentialDefinition,
     RevocationStatusList,
-    Schema,
+    Schema as ACSchema,
     RevocationRegistryDefinition,
 )
 from indy_vdr import Request
@@ -13,30 +14,86 @@ from indy_vdr import ledger
 
 from did_indy.did import parse_did_indy
 from did_indy.models.anoncreds import (
-    RevRegDef as RevRegDefModel,
+    RevRegDef,
     RevStatusList,
-    Schema as SchemaModel,
-    CredDef as CredDefModel,
+    Schema,
+    CredDef,
 )
-from did_indy.models.txn import RevRegDefTxnData
+from did_indy.models.txn import CredDefTxnData, RevRegDefTxnData
 
 LOGGER = logging.getLogger(__name__)
 
 
-def make_schema_id(issuer_id: str, name: str, version: str, **_):
+SchemaTypes = Schema | ACSchema | dict
+
+
+def normalize_schema_representation(schema: SchemaTypes | Any) -> Schema:
+    """Normalize the schema representation to our native representation."""
+    if isinstance(schema, Schema):
+        return schema
+    elif isinstance(schema, ACSchema):
+        return Schema.model_validate(schema.to_dict())
+    elif isinstance(schema, dict):
+        return Schema.model_validate(schema)
+
+    raise TypeError(f"Invalid schema type: {type(schema)}")
+
+
+CredDefTypes = CredDef | CredentialDefinition | dict
+
+
+def normalize_cred_def_representation(cred_def: CredDefTypes | Any) -> CredDef:
+    """Normalize the cred def representation to our native representation."""
+    if isinstance(cred_def, CredDef):
+        return cred_def
+    elif isinstance(cred_def, CredentialDefinition):
+        return CredDef.model_validate(cred_def.to_dict())
+    elif isinstance(cred_def, dict):
+        return CredDef.model_validate(cred_def)
+
+    raise TypeError(f"Invalid cred_def type: {type(cred_def)}")
+
+
+RevRegDefTypes = RevRegDef | RevocationRegistryDefinition | dict
+
+
+def normalize_rev_reg_def_representation(
+    rev_reg_def: RevRegDefTypes | Any,
+) -> RevRegDef:
+    """Normalize the rev reg def representation to our native representation."""
+    if isinstance(rev_reg_def, RevRegDef):
+        return rev_reg_def
+    elif isinstance(rev_reg_def, RevocationRegistryDefinition):
+        return RevRegDef.model_validate(rev_reg_def.to_dict())
+    elif isinstance(rev_reg_def, dict):
+        return RevRegDef.model_validate(rev_reg_def)
+
+    raise TypeError(f"Invalid rev_reg_def type: {type(rev_reg_def)}")
+
+
+RevStatusListTypes = RevStatusList | RevocationStatusList | dict
+
+
+def normalize_rev_status_list_representation(
+    rev_status_list: RevStatusListTypes | Any,
+) -> RevStatusList:
+    """Normalize the rev status list representation to our native representation."""
+    if isinstance(rev_status_list, RevStatusList):
+        return rev_status_list
+    elif isinstance(rev_status_list, RevocationStatusList):
+        return RevStatusList.model_validate(rev_status_list.to_dict())
+    elif isinstance(rev_status_list, dict):
+        return RevStatusList.model_validate(rev_status_list)
+
+    raise TypeError(f"Invalid rev_status_list type: {type(rev_status_list)}")
+
+
+def make_schema_id(issuer_id: str, name: str, version: str):
     """Make schema id from parts."""
     return f"{issuer_id}/anoncreds/v0/SCHEMA/{name}/{version}"
 
 
-def make_schema_id_from_schema(schema: Schema | dict):
-    """Make a schema id from a schema object."""
-    if isinstance(schema, Schema):
-        schema = schema.to_dict()
-
-    return make_schema_id(issuer_id=schema.pop("issuerId"), **schema)
-
-
-def make_indy_schema_id(issuer_id: str, name: str, version: str, **_):
+def make_indy_schema_id(issuer_id: str, name: str, version: str):
     """Make indy schema id from parts."""
     if issuer_id.startswith("did:indy:"):
         nym = parse_did_indy(issuer_id).nym
@@ -48,34 +105,35 @@ def make_indy_schema_id(issuer_id: str, name: str, version: str, **_):
     return f"{nym}:2:{name}:{version}"
 
 
-def make_indy_schema_id_from_schema(schema: Schema | dict):
-    """Make an indy schema id from a schema object."""
-    if isinstance(schema, Schema):
-        schema = schema.to_dict()
+def make_indy_schema_id_from_schema(schema: SchemaTypes) -> str:
+    """Derive the indy schema ID for a schema."""
+    schema = normalize_schema_representation(schema)
+    return make_indy_schema_id(schema.issuer_id, schema.name, schema.version)
 
-    return make_indy_schema_id(issuer_id=schema.pop("issuerId"), **schema)
+
+def make_schema_id_from_schema(schema: SchemaTypes) -> str:
+    """Derive the DID Url for a schema."""
+    schema = normalize_schema_representation(schema)
+    return make_schema_id(schema.issuer_id, schema.name, schema.version)
 
 
 def indy_schema_request(
-    schema: SchemaModel | Schema | dict,
+    schema: SchemaTypes,
 ) -> Request:
     """Create a schema request."""
-    if isinstance(schema, Schema):
-        schema = schema.to_dict()
-    elif isinstance(schema, SchemaModel):
-        schema = schema.model_dump(by_alias=True)
+    schema = normalize_schema_representation(schema)
 
-    submitter = schema["issuerId"]
+    submitter = schema.issuer_id
     if submitter.startswith("did:indy:"):
         submitter = parse_did_indy(submitter).nym
 
-    schema_id = make_indy_schema_id(submitter, **schema)
+    schema_id = make_indy_schema_id_from_schema(schema)
     indy_schema = {
         "ver": "1.0",
         "id": schema_id,
-        "name": schema["name"],
-        "version": schema["version"],
-        "attrNames": schema["attrNames"],
+        "name": schema.name,
+        "version": schema.version,
+        "attrNames": schema.attr_names,
         "seqNo": None,
     }
     request = ledger.build_schema_request(submitter, indy_schema)
@@ -87,9 +145,28 @@ def make_indy_cred_def_id(nym: str, type: str, schema_seq_no: int, tag: str) -> 
     return f"{nym}:3:{type}:{schema_seq_no}:{tag}"
 
 
-def make_cred_def_id(did: str, ref: str, tag: str) -> str:
+def make_cred_def_id(did: str, ref: int | str, tag: str) -> str:
     """Make cred def ID."""
     return f"{did}/anoncreds/v0/CLAIM_DEF/{ref}/{tag}"
+
+
+def make_indy_cred_def_id_from_result(nym: str, cred_def: CredDefTxnData) -> str:
+    """Make cred def ID."""
+    return make_indy_cred_def_id(
+        nym, cred_def.signature_type, cred_def.ref, cred_def.tag
+    )
+
+
+def make_indy_cred_def_id_from_cred_def(
+    nym: str, cred_def: CredDef, schema_seq_no: int
+) -> str:
+    """Make cred def ID."""
+    return make_indy_cred_def_id(nym, cred_def.type, schema_seq_no, cred_def.tag)
+
+
+def make_cred_def_id_from_result(did: str, cred_def: CredDefTxnData) -> str:
+    """Make cred def ID."""
+    return make_cred_def_id(did, cred_def.ref, cred_def.tag)
 
 
 def indy_cred_def_id_from_did_url(cred_def_id: str) -> str:
@@ -101,27 +178,24 @@ def indy_cred_def_id_from_did_url(cred_def_id: str) -> str:
 
 def indy_cred_def_request(
     schema_seq_no: int,
-    cred_def: CredDefModel | CredentialDefinition | dict,
+    cred_def: CredDefTypes,
 ) -> Request:
     """Create a cred def request."""
-    if isinstance(cred_def, CredentialDefinition):
-        cred_def = cred_def.to_dict()
-    elif isinstance(cred_def, CredDefModel):
-        cred_def = cred_def.model_dump(by_alias=True)
+    cred_def = normalize_cred_def_representation(cred_def)
 
-    submitter = cred_def["issuerId"]
+    submitter = cred_def.issuer_id
     if submitter.startswith("did:indy:"):
         submitter = parse_did_indy(submitter).nym
 
     cred_def_id = make_indy_cred_def_id(
-        submitter, cred_def["type"], schema_seq_no, cred_def["tag"]
+        submitter, cred_def.type, schema_seq_no, cred_def.tag
     )
     indy_cred_def = {
         "id": cred_def_id,
         "schemaId": str(schema_seq_no),
-        "tag": cred_def["tag"],
-        "type": cred_def["type"],
-        "value": cred_def["value"],
+        "tag": cred_def.tag,
+        "type": cred_def.type,
+        "value": cred_def.value,
         "ver": "1.0",
     }
     request = ledger.build_cred_def_request(
@@ -160,35 +234,32 @@ def make_indy_rev_reg_def_id_from_did_url(rev_reg_def_id: str) -> str:
 
 
 def indy_rev_reg_def_request(
-    rev_reg_def: RevRegDefModel | RevocationRegistryDefinition | dict,
+    rev_reg_def: RevRegDefTypes,
 ) -> Request:
     """Create a rev reg def request."""
-    if isinstance(rev_reg_def, RevocationRegistryDefinition):
-        rev_reg_def = rev_reg_def.to_dict()
-    if isinstance(rev_reg_def, RevRegDefModel):
-        rev_reg_def = rev_reg_def.model_dump(by_alias=True)
+    rev_reg_def = normalize_rev_reg_def_representation(rev_reg_def)
 
-    submitter = rev_reg_def["issuerId"]
+    submitter = rev_reg_def.issuer_id
     if submitter.startswith("did:indy:"):
         submitter = parse_did_indy(submitter).nym
 
-    indy_cred_def_id = indy_cred_def_id_from_did_url(rev_reg_def["credDefId"])
+    indy_cred_def_id = indy_cred_def_id_from_did_url(rev_reg_def.cred_def_id)
     rev_reg_def_id = make_indy_rev_reg_def_id(
-        submitter, indy_cred_def_id, rev_reg_def["revocDefType"], rev_reg_def["tag"]
+        submitter, indy_cred_def_id, rev_reg_def.revoc_def_type, rev_reg_def.tag
     )
 
     indy_rev_reg_def = {
         "ver": "1.0",
         "id": rev_reg_def_id,
-        "revocDefType": rev_reg_def["revocDefType"],
+        "revocDefType": rev_reg_def.revoc_def_type,
         "credDefId": indy_cred_def_id,
-        "tag": rev_reg_def["tag"],
+        "tag": rev_reg_def.tag,
         "value": {
             "issuanceType": "ISSUANCE_BY_DEFAULT",
-            "maxCredNum": rev_reg_def["value"]["maxCredNum"],
-            "publicKeys": rev_reg_def["value"]["publicKeys"],
-            "tailsHash": rev_reg_def["value"]["tailsHash"],
-            "tailsLocation": rev_reg_def["value"]["tailsLocation"],
+            "maxCredNum": rev_reg_def.value.max_cred_num,
+            "publicKeys": rev_reg_def.value.public_keys,
+            "tailsHash": rev_reg_def.value.tails_hash,
+            "tailsLocation": rev_reg_def.value.tails_location,
         },
     }
     request = ledger.build_revoc_reg_def_request(
@@ -197,26 +268,21 @@ def indy_rev_reg_def_request(
     return request
 
 
-def indy_rev_reg_initial_entry_request(
-    status_list: RevStatusList | RevocationStatusList | dict,
-) -> Request:
+def indy_rev_reg_initial_entry_request(status_list: RevStatusListTypes) -> Request:
     """Create an initial revocation entry request."""
-    if isinstance(status_list, RevocationStatusList):
-        status_list = status_list.to_dict()
-    if isinstance(status_list, RevStatusList):
-        status_list = status_list.model_dump(by_alias=True)
+    status_list = normalize_rev_status_list_representation(status_list)
 
-    submitter = status_list["issuerId"]
+    submitter = status_list.issuer_id
     if submitter.startswith("did:indy:"):
         submitter = parse_did_indy(submitter).nym
 
     indy_rev_reg_entry = {
         "ver": "1.0",
-        "value": {"accum": status_list["currentAccumulator"]},
+        "value": {"accum": status_list.current_accumulator},
     }
     request = ledger.build_revoc_reg_entry_request(
         submitter,
-        make_indy_rev_reg_def_id_from_did_url(status_list["revRegDefId"]),
+        make_indy_rev_reg_def_id_from_did_url(status_list.rev_reg_def_id),
         "CL_ACCUM",
         indy_rev_reg_entry,
     )
@@ -225,34 +291,27 @@ def indy_rev_reg_initial_entry_request(
 
 def indy_rev_reg_entry_request(
     prev_accum: str,
-    curr_list: RevStatusList | RevocationStatusList | dict,
+    curr_list: RevStatusListTypes,
     revoked: list[int],
 ) -> Request:
     """Create a revocation entry request."""
-    if isinstance(curr_list, RevocationStatusList):
-        curr_list = curr_list.to_dict()
-    elif isinstance(curr_list, RevStatusList):
-        curr_list = curr_list.model_dump(by_alias=True)
-    elif isinstance(curr_list, dict):
-        pass
-    else:
-        raise ValueError("Invalid value for curr_list")
+    curr_list = normalize_rev_status_list_representation(curr_list)
 
-    submitter = curr_list["issuerId"]
+    submitter = curr_list.issuer_id
     if submitter.startswith("did:indy:"):
         submitter = parse_did_indy(submitter).nym
 
     indy_rev_reg_entry = {
         "ver": "1.0",
         "value": {
-            "accum": curr_list["currentAccumulator"],
+            "accum": curr_list.current_accumulator,
             "prevAccum": prev_accum,
             "revoked": revoked,
         },
     }
     request = ledger.build_revoc_reg_entry_request(
         submitter,
-        make_indy_rev_reg_def_id_from_did_url(curr_list["revRegDefId"]),
+        make_indy_rev_reg_def_id_from_did_url(curr_list.rev_reg_def_id),
         "CL_ACCUM",
         indy_rev_reg_entry,
     )
