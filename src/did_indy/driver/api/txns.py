@@ -33,8 +33,12 @@ from did_indy.anoncreds import (
     indy_rev_reg_entry_request,
     indy_rev_reg_initial_entry_request,
     indy_schema_request,
+    make_cred_def_id_from_result,
+    make_indy_cred_def_id_from_result,
     make_indy_rev_reg_def_id,
+    make_indy_schema_id_from_schema,
     make_rev_reg_def_id_from_result,
+    make_schema_id_from_schema,
 )
 from did_indy.driver.auto_endorse import (
     SCOPE_CRED_DEF,
@@ -142,16 +146,6 @@ async def post_nym(
         )
 
 
-def make_indy_schema_id(nym: str, schema: Schema) -> str:
-    """Derive the indy schema ID for a schema."""
-    return f"{nym}:2:{schema.name}:{schema.version}"
-
-
-def make_schema_id(schema: Schema) -> str:
-    """Derive the DID Url for a schema."""
-    return f"{schema.issuer_id}/anoncreds/v0/SCHEMA/{schema.name}/{schema.version}"
-
-
 class SchemaRequest(BaseModel):
     """Schema Create Request."""
 
@@ -233,7 +227,7 @@ async def post_schema_submit(
     nym, key = await get_nym_and_key(store, submitter.namespace)
 
     request = TxnRequest[SchemaOperation].model_validate_json(req.request)
-    if request.endorser != nym:
+    if request.endorser and request.endorser != nym:
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
@@ -254,8 +248,8 @@ async def post_schema_submit(
     )
 
     return SchemaSubmitResponse(
-        schema_id=make_schema_id(schema),
-        indy_schema_id=make_indy_schema_id(submitter.nym, schema),
+        schema_id=make_schema_id_from_schema(schema),
+        indy_schema_id=make_indy_schema_id_from_schema(schema),
         registration_metadata=result,
         schema_metadata=result.txnMetadata,
     )
@@ -294,7 +288,7 @@ async def post_schema_endorse(
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
     request = TxnRequest[SchemaOperation].model_validate_json(req.request)
-    if request.endorser != nym:
+    if request.endorser and request.endorser != nym:
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
@@ -304,21 +298,6 @@ async def post_schema_endorse(
         nym=endorsement.nym,
         signature=base64.urlsafe_b64encode(endorsement.signature).decode(),
     )
-
-
-def make_indy_cred_def_id_from_result(nym: str, cred_def: CredDefTxnData) -> str:
-    """Make cred def ID."""
-    return f"{nym}:3:{cred_def.signature_type}:{cred_def.ref}:{cred_def.tag}"
-
-
-def make_indy_cred_def_id(nym: str, cred_def: CredDef, schema_seq_no: int) -> str:
-    """Make cred def ID."""
-    return f"{nym}:3:{cred_def.type}:{schema_seq_no}:{cred_def.tag}"
-
-
-def make_cred_def_id(did: str, cred_def: CredDefTxnData) -> str:
-    """Make cred def ID."""
-    return f"{did}/anoncreds/v0/CLAIM_DEF/{cred_def.ref}/{cred_def.tag}"
 
 
 class CredDefRequest(BaseModel):
@@ -394,7 +373,7 @@ async def post_cred_def_submit(
     nym, key = await get_nym_and_key(store, submitter.namespace)
 
     request = TxnRequest[CredDefOperation].model_validate_json(req.request)
-    if request.endorser != nym:
+    if request.endorser and request.endorser != nym:
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
@@ -408,7 +387,7 @@ async def post_cred_def_submit(
         result = TxnResult[CredDefTxnData].model_validate(result)
 
     return CredDefSubmitResponse(
-        cred_def_id=make_cred_def_id(req.submitter, result.txn.data),
+        cred_def_id=make_cred_def_id_from_result(req.submitter, result.txn.data),
         indy_cred_def_id=make_indy_cred_def_id_from_result(
             submitter.nym, result.txn.data
         ),
@@ -419,7 +398,7 @@ async def post_cred_def_submit(
 
 @router.post("/cred-def/endorse")
 async def post_cred_def_endorse(
-    req: SubmitRequest,
+    req: EndorseRequest,
     ledgers: LedgersDep,
     store: StoreDep,
     _=Security(client, scopes=[SCOPE_CRED_DEF]),
@@ -433,7 +412,7 @@ async def post_cred_def_endorse(
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
     request = TxnRequest[CredDefOperation].model_validate_json(req.request)
-    if request.endorser != nym:
+    if request.endorser and request.endorser != nym:
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
@@ -510,7 +489,7 @@ async def post_rev_reg_def_submit(
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
     request = TxnRequest[RevRegDefOperation].model_validate_json(req.request)
-    if request.endorser != nym:
+    if request.endorser and request.endorser != nym:
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
@@ -535,7 +514,7 @@ async def post_rev_reg_def_submit(
 
 @router.post("/rev-reg-def/endorse")
 async def post_rev_reg_def_endorse(
-    req: SubmitRequest,
+    req: EndorseRequest,
     ledgers: LedgersDep,
     store: StoreDep,
     _=Security(client, scopes=[SCOPE_REV_REG_DEF]),
@@ -549,7 +528,7 @@ async def post_rev_reg_def_endorse(
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
     request = TxnRequest[RevRegDefOperation].model_validate_json(req.request)
-    if request.endorser != nym:
+    if request.endorser and request.endorser != nym:
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
@@ -624,7 +603,7 @@ async def post_rev_status_list_submit(
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
     request = TxnRequest[RevRegEntryOperation].model_validate_json(req.request)
-    if request.endorser != nym:
+    if request.endorser and request.endorser != nym:
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
@@ -645,7 +624,7 @@ async def post_rev_status_list_submit(
 
 @router.post("/rev-status-list/endorse")
 async def post_rev_status_list_endorse(
-    req: SubmitRequest,
+    req: EndorseRequest,
     ledgers: LedgersDep,
     store: StoreDep,
     _=Security(client, scopes=[SCOPE_REV_REG_ENTRY]),
@@ -659,7 +638,7 @@ async def post_rev_status_list_endorse(
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
     request = TxnRequest[RevRegEntryOperation].model_validate_json(req.request)
-    if request.endorser != nym:
+    if request.endorser and request.endorser != nym:
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
@@ -729,7 +708,7 @@ async def post_rev_status_list_update_submit(
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
     request = TxnRequest[RevRegEntryOperation].model_validate_json(req.request)
-    if request.endorser != nym:
+    if request.endorser and request.endorser != nym:
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
@@ -750,7 +729,7 @@ async def post_rev_status_list_update_submit(
 
 @router.post("/rev-status-list/update/endorse")
 async def post_rev_status_list_update_endorse(
-    req: SubmitRequest,
+    req: EndorseRequest,
     ledgers: LedgersDep,
     store: StoreDep,
     _=Security(client, scopes=[SCOPE_REV_REG_ENTRY]),
@@ -764,7 +743,7 @@ async def post_rev_status_list_update_endorse(
 
     nym, key = await get_nym_and_key(store, submitter.namespace)
     request = TxnRequest[RevRegEntryOperation].model_validate_json(req.request)
-    if request.endorser != nym:
+    if request.endorser and request.endorser != nym:
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
