@@ -18,12 +18,11 @@ from anoncreds import (
 from aries_askar import Key, KeyAlg
 from base58 import b58encode
 
+from did_indy.author.author import Author, AuthorDependencies
+from did_indy.author.lite import AuthorLite
+from did_indy.cache import BasicCache
 from did_indy.client.client import IndyDriverAdminClient, IndyDriverClient
-from did_indy.anoncreds import (
-    indy_cred_def_request,
-    indy_schema_request,
-    make_schema_id_from_schema,
-)
+from did_indy.ledger import LedgerPool, fetch_genesis_transactions
 
 
 DRIVER = getenv("DRIVER", "http://driver")
@@ -60,6 +59,16 @@ def logging_to_stdout():
     logging.getLogger("did_indy").setLevel(LOG_LEVEL.upper())
 
 
+def get_signer(key: Key):
+    """Return a signer."""
+
+    async def _signer(signature_input: bytes) -> bytes:
+        """Signer protocol implementer for key."""
+        return key.sign_message(signature_input)
+
+    return _signer
+
+
 async def thin():
     """Demo a thin client."""
     logging_to_stdout()
@@ -79,15 +88,14 @@ async def thin():
     taa = await client.accept_taa(taa_info, "on_file")
 
     nym = generate_nym()
-    result = await client.create_nym(NAMESPACE, nym.verkey, taa=taa)
+    author = AuthorLite(client, get_signer(nym.key))
+    result = await author.create_nym(NAMESPACE, nym.verkey, taa=taa)
     did = result.did
 
     schema = Schema.create(
         name="test", version="1.0", issuer_id=did, attr_names=["firstname", "lastname"]
     )
-    result = await client.create_schema(schema.to_json(), taa)
-    sig = nym.key.sign_message(result.get_signature_input_bytes())
-    result = await client.submit_schema(did, result.request, sig)
+    result = await author.register_schema(schema, taa)
 
     cred_def, private, proof = CredentialDefinition.create(
         schema_id=result.schema_id,
@@ -97,9 +105,7 @@ async def thin():
         signature_type="CL",
         support_revocation=True,
     )
-    result = await client.create_cred_def(cred_def.to_json(), taa=taa)
-    sig = nym.key.sign_message(result.get_signature_input_bytes())
-    result = await client.submit_cred_def(did, result.request, sig)
+    result = await author.register_cred_def(cred_def, taa)
 
     rev_reg_def, private = RevocationRegistryDefinition.create(
         cred_def_id=result.cred_def_id,
@@ -109,9 +115,7 @@ async def thin():
         registry_type="CL_ACCUM",
         max_cred_num=1000,
     )
-    result = await client.create_rev_reg_def(rev_reg_def.to_json(), taa=taa)
-    sig = nym.key.sign_message(result.get_signature_input_bytes())
-    result = await client.submit_rev_reg_def(did, result.request, sig)
+    result = await author.register_rev_reg_def(rev_reg_def, taa)
 
     rev_reg_def_id = result.rev_reg_def_id
     revocation_list = RevocationStatusList.create(
@@ -121,9 +125,7 @@ async def thin():
         rev_reg_def_private=private,
         issuer_id=did,
     )
-    result = await client.create_rev_status_list(revocation_list.to_dict(), taa=taa)
-    sig = nym.key.sign_message(result.get_signature_input_bytes())
-    result = await client.submit_rev_status_list(did, result.request, sig)
+    result = await author.register_rev_status_list(revocation_list, taa)
 
     next_list = revocation_list.update(
         cred_def=cred_def,
@@ -134,14 +136,24 @@ async def thin():
         timestamp=int(time()),
     )
 
-    result = await client.update_rev_status_list(
-        prev_accum=revocation_list.to_dict()["currentAccumulator"],
-        curr_list=next_list.to_dict(),
+    result = await author.update_rev_status_list(
+        prev_list=revocation_list,
+        curr_list=next_list,
         revoked=[1],
         taa=taa,
     )
-    sig = nym.key.sign_message(result.get_signature_input_bytes())
-    result = await client.submit_rev_status_list_update(did, result.request, sig)
+
+
+class AuthorDependenciesBasic(AuthorDependencies):
+    def __init__(self, key: Key, pool: LedgerPool):
+        self.key = key
+        self.pool = pool
+
+    async def get_key(self, did: str) -> Key:
+        return self.key
+
+    async def get_pool(self, namespace: str) -> LedgerPool:
+        return self.pool
 
 
 async def thick():
@@ -163,7 +175,16 @@ async def thick():
     taa = await client.accept_taa(taa_info, "on_file")
 
     nym = generate_nym()
-    result = await client.create_nym(NAMESPACE, nym.verkey, taa=taa)
+    pool = LedgerPool(
+        NAMESPACE,
+        genesis_transactions=await fetch_genesis_transactions(
+            "https://raw.githubusercontent.com/Indicio-tech/indicio-network/main/genesis_files/pool_transactions_testnet_genesis"
+        ),
+        cache=BasicCache(),
+    )
+
+    author = Author(client, AuthorDependenciesBasic(nym.key, pool))
+    result = await author.create_nym(NAMESPACE, nym.verkey, taa=taa)
     did = result.did
 
     schema = Schema.create(
@@ -172,35 +193,53 @@ async def thick():
         attr_names=["firstname", "lastname"],
         issuer_id=did,
     )
-    request = indy_schema_request(schema)
-    if taa:
-        request.set_txn_author_agreement_acceptance(taa.for_request())
+    result = await author.register_schema(schema, taa)
 
-    endorsement = await client.endorse_schema(did, request.body)
-    request.set_endorser(endorsement.nym)
-
-    sig = nym.key.sign_message(request.signature_input)
-    request.set_signature(sig)
-    request.set_multi_signature(endorsement.nym, endorsement.get_signature_bytes())
-
-    schema_id = make_schema_id_from_schema(schema)
     cred_def, private, proof = CredentialDefinition.create(
-        schema_id=schema_id,
+        schema_id=result.schema_id,
         schema=schema,
         issuer_id=did,
         tag="test",
         signature_type="CL",
+        support_revocation=True,
     )
-    request = indy_cred_def_request(1000, cred_def)
-    if taa:
-        request.set_txn_author_agreement_acceptance(taa.for_request())
+    result = await author.register_cred_def(cred_def, taa)
 
-    endorsement = await client.endorse_schema(did, request.body)
-    request.set_endorser(endorsement.nym)
+    rev_reg_def, private = RevocationRegistryDefinition.create(
+        cred_def_id=result.cred_def_id,
+        cred_def=cred_def,
+        issuer_id=did,
+        tag="0",
+        registry_type="CL_ACCUM",
+        max_cred_num=1000,
+    )
+    result = await author.register_rev_reg_def(rev_reg_def, taa)
 
-    sig = nym.key.sign_message(request.signature_input)
-    request.set_signature(sig)
-    request.set_multi_signature(endorsement.nym, endorsement.get_signature_bytes())
+    rev_reg_def_id = result.rev_reg_def_id
+    revocation_list = RevocationStatusList.create(
+        cred_def=cred_def,
+        rev_reg_def_id=rev_reg_def_id,
+        rev_reg_def=rev_reg_def,
+        rev_reg_def_private=private,
+        issuer_id=did,
+    )
+    result = await author.register_rev_status_list(revocation_list, taa)
+
+    next_list = revocation_list.update(
+        cred_def=cred_def,
+        rev_reg_def=rev_reg_def,
+        rev_reg_def_private=private,
+        issued=None,
+        revoked=[1],
+        timestamp=int(time()),
+    )
+
+    result = await author.update_rev_status_list(
+        prev_list=revocation_list,
+        curr_list=next_list,
+        revoked=[1],
+        taa=taa,
+    )
 
 
 if __name__ == "__main__":
