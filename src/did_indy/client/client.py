@@ -16,6 +16,7 @@ from did_indy.driver.api.txns import (
     SchemaSubmitResponse,
     TxnToSignResponse,
 )
+from did_indy.models.txn import Endorsement
 
 from .http import HTTPClient
 
@@ -205,7 +206,7 @@ class IndyDriverClient(HTTPClient):
         self,
         submitter: str,
         request: str,
-    ) -> EndorseResponse:
+    ) -> Endorsement:
         """Submit a signed txn."""
         result = await self.post(
             url="/txn/schema/endorse",
@@ -215,7 +216,7 @@ class IndyDriverClient(HTTPClient):
             },
             response=EndorseResponse,
         )
-        return result
+        return Endorsement(result.nym, result.get_signature_bytes())
 
     async def create_cred_def(
         self,
@@ -258,7 +259,7 @@ class IndyDriverClient(HTTPClient):
         self,
         submitter: str,
         request: str,
-    ) -> EndorseResponse:
+    ) -> Endorsement:
         """Submit a signed txn."""
         result = await self.post(
             url="/txn/cred-def/endorse",
@@ -268,7 +269,7 @@ class IndyDriverClient(HTTPClient):
             },
             response=EndorseResponse,
         )
-        return result
+        return Endorsement(result.nym, result.get_signature_bytes())
 
     async def create_rev_reg_def(
         self,
@@ -307,6 +308,22 @@ class IndyDriverClient(HTTPClient):
         )
         return result
 
+    async def endorse_rev_reg_def(
+        self,
+        submitter: str,
+        request: str,
+    ) -> Endorsement:
+        """Submit a signed txn."""
+        result = await self.post(
+            url="/txn/rev-reg-def/endorse",
+            json={
+                "submitter": submitter,
+                "request": request,
+            },
+            response=EndorseResponse,
+        )
+        return Endorsement(result.nym, result.get_signature_bytes())
+
     async def create_rev_status_list(
         self,
         rev_status_list: dict | str,
@@ -343,6 +360,22 @@ class IndyDriverClient(HTTPClient):
             response=RevStatusListSubmitResponse,
         )
         return result
+
+    async def endorse_rev_status_list(
+        self,
+        submitter: str,
+        request: str,
+    ) -> Endorsement:
+        """Submit a signed txn."""
+        result = await self.post(
+            url="/txn/rev-status-list/endorse",
+            json={
+                "submitter": submitter,
+                "request": request,
+            },
+            response=EndorseResponse,
+        )
+        return Endorsement(result.nym, result.get_signature_bytes())
 
     async def update_rev_status_list(
         self,
@@ -384,3 +417,19 @@ class IndyDriverClient(HTTPClient):
             response=RevStatusListSubmitResponse,
         )
         return result
+
+    async def endorse_rev_status_list_update(
+        self,
+        submitter: str,
+        request: str,
+    ) -> Endorsement:
+        """Submit a signed txn."""
+        result = await self.post(
+            url="/txn/rev-status-list/update/endorse",
+            json={
+                "submitter": submitter,
+                "request": request,
+            },
+            response=EndorseResponse,
+        )
+        return Endorsement(result.nym, result.get_signature_bytes())
