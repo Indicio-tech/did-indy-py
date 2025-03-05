@@ -35,6 +35,27 @@ class CredDef(BaseModel):
     value: Dict[str, Any]
 
 
+class RevRegDefValue(BaseModel):
+    """Rev Reg Def Value Model."""
+
+    max_cred_num: int = Field(
+        validation_alias=AliasChoices("max_cred_num", "maxCredNum"),
+        serialization_alias="maxCredNum",
+    )
+    public_keys: Dict[str, Any] = Field(
+        validation_alias=AliasChoices("public_keys", "publicKeys"),
+        serialization_alias="publicKeys",
+    )
+    tails_hash: str = Field(
+        validation_alias=AliasChoices("tails_hash", "tailsHash"),
+        serialization_alias="tailsHash",
+    )
+    tails_location: str = Field(
+        validation_alias=AliasChoices("tails_location", "tailsLocation"),
+        serialization_alias="tailsLocation",
+    )
+
+
 class RevRegDef(BaseModel):
     """Rev Reg Def Model."""
 
@@ -43,7 +64,7 @@ class RevRegDef(BaseModel):
         serialization_alias="issuerId",
     )
     revoc_def_type: Literal["CL_ACCUM"] = Field(
-        validation_alias=AliasChoices("revoc_def_typ", "revocDefType"),
+        validation_alias=AliasChoices("revoc_def_type", "revocDefType"),
         serialization_alias="revocDefType",
     )
     cred_def_id: str = Field(
@@ -51,7 +72,7 @@ class RevRegDef(BaseModel):
         serialization_alias="credDefId",
     )
     tag: str
-    value: Dict[str, Any]
+    value: RevRegDefValue
 
 
 class RevStatusList(BaseModel):
