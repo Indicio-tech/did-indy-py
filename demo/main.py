@@ -27,6 +27,7 @@ from did_indy.ledger import LedgerPool, fetch_genesis_transactions
 
 DRIVER = getenv("DRIVER", "http://driver")
 LOG_LEVEL = getenv("LOG_LEVEL", "info")
+ADMIN_API_KEY = getenv("ADMIN_API_KEY", "insecure-api-key")
 
 
 @dataclass
@@ -73,15 +74,7 @@ async def thin():
     """Demo a thin client."""
     logging_to_stdout()
 
-    admin = IndyDriverAdminClient(DRIVER, admin_api_key="insecure-api-key")
-    token = (
-        await admin.create_client(
-            "test",
-            schemas=True,
-            cred_defs=True,
-        )
-    ).token
-    client = IndyDriverClient(DRIVER, client_token=token)
+    client = IndyDriverClient(DRIVER, client_api_key=ADMIN_API_KEY)
 
     NAMESPACE = "indicio:test"
     taa_info = await client.get_taa(NAMESPACE)
@@ -160,15 +153,7 @@ async def thick():
     """Demo a thick client."""
     logging_to_stdout()
 
-    admin = IndyDriverAdminClient(DRIVER, admin_api_key="insecure-api-key")
-    token = (
-        await admin.create_client(
-            "test",
-            schemas=True,
-            cred_defs=True,
-        )
-    ).token
-    client = IndyDriverClient(DRIVER, client_token=token)
+    client = IndyDriverClient(DRIVER, client_api_key=ADMIN_API_KEY)
 
     NAMESPACE = "indicio:test"
     taa_info = await client.get_taa(NAMESPACE)
