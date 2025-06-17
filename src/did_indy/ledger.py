@@ -11,7 +11,6 @@ from pathlib import Path
 import tempfile
 from typing import Optional, TypeVar, cast
 
-from aries_askar import Key
 from indy_vdr import Pool, Request, VdrError, ledger, open_pool
 from indy_vdr.bindings import dereference, resolve
 
@@ -22,6 +21,7 @@ from did_indy.models.txn import (
     RevRegDefDeref,
     SchemaDeref,
 )
+from did_indy.signer import sign_message, Signer
 from did_indy.cache import Cache
 from did_indy.config import LocalLedgerGenesis, RemoteLedgerGenesis
 from did_indy.utils import FetchError, fetch
@@ -477,7 +477,7 @@ class Ledger(BaseLedger):
     async def submit(
         self,
         request: str | Request,
-        key: Key,
+        signer: Signer,
         taa: TaaAcceptance | None = None,
         *,
         endorsement: Endorsement | None = None,
@@ -508,7 +508,7 @@ class Ledger(BaseLedger):
         if endorsement:
             request.set_endorser(endorsement.nym)
 
-        request.set_signature(key.sign_message(request.signature_input))
+        request.set_signature(await sign_message(signer, request.signature_input))
 
         if endorsement:
             request.set_multi_signature(endorsement.nym, endorsement.signature)
@@ -523,7 +523,7 @@ class Ledger(BaseLedger):
         self,
         request: str | Request,
         nym: str,
-        key: Key,
+        signer: Signer,
     ) -> Endorsement:
         """Endorse and return a request."""
         if isinstance(request, str):
@@ -532,7 +532,7 @@ class Ledger(BaseLedger):
             raise BadLedgerRequestError("Expected str or Request")
 
         request.set_endorser(nym)
-        return Endorsement(nym, key.sign_message(request.signature_input))
+        return Endorsement(nym, await sign_message(signer, request.signature_input))
 
     async def endorse_and_submit(
         self,
@@ -540,7 +540,7 @@ class Ledger(BaseLedger):
         submitter: str | None,
         submitter_signature: str | bytes | None,
         nym: str,
-        key: Key,
+        signer: Signer,
     ) -> dict:
         """Endorse and submit a request."""
         if isinstance(request, str):
@@ -553,7 +553,7 @@ class Ledger(BaseLedger):
                 f"Cannot sign and submit request to closed pool '{self.pool.name}'"
             )
 
-        endorsement = await self.endorse(request, nym, key)
+        endorsement = await self.endorse(request, nym, signer)
         request.set_endorser(endorsement.nym)
         request.set_multi_signature(endorsement.nym, endorsement.signature)
 
