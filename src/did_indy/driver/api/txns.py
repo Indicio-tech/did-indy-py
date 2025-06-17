@@ -128,7 +128,7 @@ async def post_nym(
             version=version,
         )
         try:
-            result = await ledger.submit(request, key, taa)
+            result = await ledger.submit(request, key.sign_message, taa)
         except VdrError as error:
             if error.code == VdrErrorCode.POOL_REQUEST_FAILED:
                 raise HTTPException(400, detail=str(error))
@@ -248,7 +248,7 @@ async def post_schema_submit(
             submitter=submitter.nym,
             submitter_signature=req.signature,
             nym=nym,
-            key=key,
+            signer=key.sign_message,
         )
 
     result = TxnResult[SchemaTxnData].model_validate(result)
@@ -308,7 +308,7 @@ async def post_schema_endorse(
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
-        endorsement = await ledger.endorse(req.request, nym, key)
+        endorsement = await ledger.endorse(req.request, nym, key.sign_message)
 
     return EndorseResponse(
         nym=endorsement.nym,
@@ -406,7 +406,7 @@ async def post_cred_def_submit(
             submitter=submitter.nym,
             submitter_signature=req.signature,
             nym=nym,
-            key=key,
+            signer=key.sign_message,
         )
         result = TxnResult[CredDefTxnData].model_validate(result)
 
@@ -444,7 +444,7 @@ async def post_cred_def_endorse(
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
-        endorsement = await ledger.endorse(req.request, nym, key)
+        endorsement = await ledger.endorse(req.request, nym, key.sign_message)
 
     return EndorseResponse(
         nym=endorsement.nym,
@@ -534,7 +534,7 @@ async def post_rev_reg_def_submit(
             submitter=submitter.nym,
             submitter_signature=req.signature,
             nym=nym,
-            key=key,
+            signer=key.sign_message,
         )
         result = TxnResult[RevRegDefTxnData].model_validate(result)
 
@@ -572,7 +572,7 @@ async def post_rev_reg_def_endorse(
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
-        endorsement = await ledger.endorse(req.request, nym, key)
+        endorsement = await ledger.endorse(req.request, nym, key.sign_message)
 
     return EndorseResponse(
         nym=endorsement.nym,
@@ -663,7 +663,7 @@ async def post_rev_status_list_submit(
             submitter=submitter.nym,
             submitter_signature=req.signature,
             nym=nym,
-            key=key,
+            signer=key.sign_message,
         )
         result = TxnResult[RevRegEntryTxnData].model_validate(result)
 
@@ -697,7 +697,7 @@ async def post_rev_status_list_endorse(
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
-        endorsement = await ledger.endorse(req.request, nym, key)
+        endorsement = await ledger.endorse(req.request, nym, key.sign_message)
 
     return EndorseResponse(
         nym=endorsement.nym,
@@ -780,7 +780,7 @@ async def post_rev_status_list_update_submit(
             submitter=submitter.nym,
             submitter_signature=req.signature,
             nym=nym,
-            key=key,
+            signer=key.sign_message,
         )
         result = TxnResult[RevRegEntryTxnData].model_validate(result)
 
@@ -814,7 +814,7 @@ async def post_rev_status_list_update_endorse(
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
-        endorsement = await ledger.endorse(req.request, nym, key)
+        endorsement = await ledger.endorse(req.request, nym, key.sign_message)
 
     return EndorseResponse(
         nym=endorsement.nym,

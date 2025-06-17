@@ -1,6 +1,5 @@
 """Lite Author implementation."""
 
-from typing import Protocol
 from did_indy.author.base import BaseAuthor
 from did_indy.anoncreds import (
     CredDefTypes,
@@ -20,15 +19,8 @@ from did_indy.driver.api.txns import (
     RevStatusListSubmitResponse,
     SchemaSubmitResponse,
 )
+from did_indy.signer import Signer, sign_message
 from did_indy.models.taa import TaaAcceptance
-
-
-class Signer(Protocol):
-    """Signer Protocol."""
-
-    async def __call__(self, signature_input: bytes) -> bytes:
-        """Sign signature input."""
-        ...
 
 
 class AuthorLite(BaseAuthor):
@@ -62,7 +54,7 @@ class AuthorLite(BaseAuthor):
         """Register a schema."""
         schema = normalize_schema_representation(schema)
         txn = await self.client.create_schema(schema.model_dump(), taa)
-        sig = await self.signer(txn.get_signature_input_bytes())
+        sig = await sign_message(self.signer, txn.get_signature_input_bytes())
         result = await self.client.submit_schema(schema.issuer_id, txn.request, sig)
         return result
 
@@ -74,7 +66,7 @@ class AuthorLite(BaseAuthor):
         """Register a credential definition."""
         cred_def = normalize_cred_def_representation(cred_def)
         txn = await self.client.create_cred_def(cred_def.model_dump(), taa)
-        sig = await self.signer(txn.get_signature_input_bytes())
+        sig = await sign_message(self.signer, txn.get_signature_input_bytes())
         result = await self.client.submit_cred_def(cred_def.issuer_id, txn.request, sig)
         return result
 
@@ -86,7 +78,7 @@ class AuthorLite(BaseAuthor):
         """Register a revocation registry definition."""
         rev_reg_def = normalize_rev_reg_def_representation(rev_reg_def)
         txn = await self.client.create_rev_reg_def(rev_reg_def.model_dump(), taa)
-        sig = await self.signer(txn.get_signature_input_bytes())
+        sig = await sign_message(self.signer, txn.get_signature_input_bytes())
         result = await self.client.submit_rev_reg_def(
             rev_reg_def.issuer_id, txn.request, sig
         )
@@ -102,7 +94,7 @@ class AuthorLite(BaseAuthor):
         txn = await self.client.create_rev_status_list(
             rev_status_list.model_dump(), taa
         )
-        sig = await self.signer(txn.get_signature_input_bytes())
+        sig = await sign_message(self.signer, txn.get_signature_input_bytes())
         result = await self.client.submit_rev_status_list(
             rev_status_list.issuer_id, txn.request, sig
         )
@@ -121,7 +113,7 @@ class AuthorLite(BaseAuthor):
         txn = await self.client.update_rev_status_list(
             prev_list.current_accumulator, curr_list.model_dump(), revoked, taa
         )
-        sig = await self.signer(txn.get_signature_input_bytes())
+        sig = await sign_message(self.signer, txn.get_signature_input_bytes())
         result = await self.client.submit_rev_status_list_update(
             curr_list.issuer_id, txn.request, sig
         )

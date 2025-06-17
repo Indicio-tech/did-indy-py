@@ -3,7 +3,6 @@
 import logging
 from typing import Protocol
 
-from aries_askar import Key
 
 from did_indy.anoncreds import (
     CredDefTypes,
@@ -36,6 +35,7 @@ from did_indy.driver.api.txns import (
     SchemaSubmitResponse,
     make_indy_cred_def_id_from_result,
 )
+from did_indy.signer import Signer
 from did_indy.ledger import Ledger, LedgerPool, LedgerTransactionError
 from did_indy.models.anoncreds import Schema
 from did_indy.models.taa import TaaAcceptance
@@ -60,14 +60,14 @@ class UnknownNamespace(AuthorError):
 
 
 class UnknownAuthorDID(AuthorError):
-    """Raised when unable to find key by author DID."""
+    """Raised when unable to find signer by author DID."""
 
 
 class AuthorDependencies(Protocol):
     """Retrieve author info."""
 
-    async def get_key(self, did: str) -> Key:
-        """Retrieve the key for a did."""
+    async def get_signer(self, did: str) -> Signer:
+        """Retrieve the signer for a did."""
         ...
 
     async def get_pool(self, namespace: str) -> LedgerPool:
@@ -120,11 +120,11 @@ class Author(BaseAuthor):
             ) from err
 
         try:
-            key = await self.depends.get_key(schema.issuer_id)
+            signer = await self.depends.get_signer(schema.issuer_id)
         except Exception as err:
-            LOGGER.exception("Failed to get key")
+            LOGGER.exception("Failed to get signer")
             raise UnknownAuthorDID(
-                f"Failed to get key for DID {schema.issuer_id}"
+                f"Failed to get signer for DID {schema.issuer_id}"
             ) from err
 
         request = indy_schema_request(schema)
@@ -134,7 +134,7 @@ class Author(BaseAuthor):
         endorsement = await self.client.endorse_schema(schema.issuer_id, request.body)
 
         async with Ledger(pool) as ledger:
-            result = await ledger.submit(request, key, endorsement=endorsement)
+            result = await ledger.submit(request, signer, endorsement=endorsement)
 
         result = TxnResult[SchemaTxnData].model_validate(result)
         schema = Schema(
@@ -169,11 +169,11 @@ class Author(BaseAuthor):
             ) from err
 
         try:
-            key = await self.depends.get_key(cred_def.issuer_id)
+            signer = await self.depends.get_signer(cred_def.issuer_id)
         except Exception as err:
-            LOGGER.exception("Failed to get key")
+            LOGGER.exception("Failed to get signer")
             raise UnknownAuthorDID(
-                f"Failed to get key for DID {cred_def.issuer_id}"
+                f"Failed to get signer for DID {cred_def.issuer_id}"
             ) from err
 
         async with Ledger(pool) as ledger:
@@ -191,7 +191,7 @@ class Author(BaseAuthor):
             endorsement = await self.client.endorse_cred_def(
                 cred_def.issuer_id, request.body
             )
-            result = await ledger.submit(request, key, endorsement=endorsement)
+            result = await ledger.submit(request, signer, endorsement=endorsement)
             result = TxnResult[CredDefTxnData].model_validate(result)
 
         return CredDefSubmitResponse(
@@ -223,11 +223,11 @@ class Author(BaseAuthor):
             ) from err
 
         try:
-            key = await self.depends.get_key(rev_reg_def.issuer_id)
+            signer = await self.depends.get_signer(rev_reg_def.issuer_id)
         except Exception as err:
-            LOGGER.exception("Failed to get key")
+            LOGGER.exception("Failed to get signer")
             raise UnknownAuthorDID(
-                f"Failed to get key for DID {rev_reg_def.issuer_id}"
+                f"Failed to get signer for DID {rev_reg_def.issuer_id}"
             ) from err
 
         request = indy_rev_reg_def_request(rev_reg_def)
@@ -239,7 +239,7 @@ class Author(BaseAuthor):
         )
 
         async with Ledger(pool) as ledger:
-            result = await ledger.submit(request, key, endorsement=endorsement)
+            result = await ledger.submit(request, signer, endorsement=endorsement)
             result = TxnResult[RevRegDefTxnData].model_validate(result)
 
         return RevRegDefSubmitResponse(
@@ -274,11 +274,11 @@ class Author(BaseAuthor):
             ) from err
 
         try:
-            key = await self.depends.get_key(rev_status_list.issuer_id)
+            signer = await self.depends.get_signer(rev_status_list.issuer_id)
         except Exception as err:
-            LOGGER.exception("Failed to get key")
+            LOGGER.exception("Failed to get signer")
             raise UnknownAuthorDID(
-                f"Failed to get key for DID {rev_status_list.issuer_id}"
+                f"Failed to get signer for DID {rev_status_list.issuer_id}"
             ) from err
 
         request = indy_rev_reg_initial_entry_request(rev_status_list)
@@ -290,7 +290,7 @@ class Author(BaseAuthor):
         )
 
         async with Ledger(pool) as ledger:
-            result = await ledger.submit(request, key, endorsement=endorsement)
+            result = await ledger.submit(request, signer, endorsement=endorsement)
             result = TxnResult[RevRegEntryTxnData].model_validate(result)
 
         return RevStatusListSubmitResponse(
@@ -322,11 +322,11 @@ class Author(BaseAuthor):
             ) from err
 
         try:
-            key = await self.depends.get_key(curr_list.issuer_id)
+            signer = await self.depends.get_signer(curr_list.issuer_id)
         except Exception as err:
-            LOGGER.exception("Failed to get key")
+            LOGGER.exception("Failed to get signer")
             raise UnknownAuthorDID(
-                f"Failed to get key for DID {curr_list.issuer_id}"
+                f"Failed to get signer for DID {curr_list.issuer_id}"
             ) from err
 
         request = indy_rev_reg_entry_request(
@@ -340,7 +340,7 @@ class Author(BaseAuthor):
         )
 
         async with Ledger(pool) as ledger:
-            result = await ledger.submit(request, key, endorsement=endorsement)
+            result = await ledger.submit(request, signer, endorsement=endorsement)
             result = TxnResult[RevRegEntryTxnData].model_validate(result)
 
         return RevStatusListSubmitResponse(

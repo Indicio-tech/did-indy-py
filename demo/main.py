@@ -23,6 +23,7 @@ from did_indy.author.lite import AuthorLite
 from did_indy.cache import BasicCache
 from did_indy.client.client import IndyDriverAdminClient, IndyDriverClient
 from did_indy.ledger import LedgerPool, fetch_genesis_transactions
+from did_indy.signer import Signer
 
 
 DRIVER = getenv("DRIVER", "http://driver")
@@ -59,16 +60,6 @@ def logging_to_stdout():
     logging.getLogger("did_indy").setLevel(LOG_LEVEL.upper())
 
 
-def get_signer(key: Key):
-    """Return a signer."""
-
-    async def _signer(signature_input: bytes) -> bytes:
-        """Signer protocol implementer for key."""
-        return key.sign_message(signature_input)
-
-    return _signer
-
-
 async def thin():
     """Demo a thin client."""
     logging_to_stdout()
@@ -88,7 +79,7 @@ async def thin():
     taa = await client.accept_taa(taa_info, "on_file")
 
     nym = generate_nym()
-    author = AuthorLite(client, get_signer(nym.key))
+    author = AuthorLite(client, nym.key.sign_message)
     result = await author.create_nym(NAMESPACE, nym.verkey, taa=taa)
     did = result.did
 
@@ -149,8 +140,8 @@ class AuthorDependenciesBasic(AuthorDependencies):
         self.key = key
         self.pool = pool
 
-    async def get_key(self, did: str) -> Key:
-        return self.key
+    async def get_signer(self, did: str) -> Signer:
+        return self.key.sign_message
 
     async def get_pool(self, namespace: str) -> LedgerPool:
         return self.pool
