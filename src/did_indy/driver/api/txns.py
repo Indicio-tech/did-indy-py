@@ -79,7 +79,7 @@ class NymResponse(BaseModel):
     did: str
     did_sov: str
     role: str | None = None
-    diddocContent: Mapping[str, Any] | None = None
+    diddocContent: str | None = None
 
 
 @router.post("/nym", tags=["Nym"], summary="Create a new nym")
