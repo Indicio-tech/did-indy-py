@@ -24,6 +24,7 @@ class CredDefTxnDataData(BaseModel):
     """Cred Def Transaction txn.data.data."""
 
     primary: Dict[str, Any]
+    revocation: Dict[str, Any]
 
 
 class CredDefTxnData(BaseModel):
@@ -168,7 +169,6 @@ class GetSchemaReply(BaseModel):
     txnTime: int
     type: str
 
-
 SchemaDeref = DereferenceResult[SchemaTxnDataData, GetSchemaReply]
 
 
@@ -187,10 +187,22 @@ class GetCredDefReply(BaseModel):
     txnTime: int
     type: str
 
-
 CredDefDeref = DereferenceResult[CredDefTxnDataData, GetCredDefReply]
 
-RevRegDefDeref = DereferenceResult[CredDefTxnDataData, GetCredDefReply]
+
+class GetRevRegDefReply(BaseModel):
+    """ Get revocation registry definition reply. """
+
+    data: RevRegDefTxnData
+    id: str
+    identifier: str
+    reqId: int
+    seqNo: int
+    state_proof: Any
+    txnTime: int
+    type: str
+
+RevRegDefDeref = DereferenceResult[RevRegDefTxnData, GetRevRegDefReply]
 
 
 @dataclass

@@ -97,7 +97,7 @@ async def thin():
         support_revocation=True,
     )
     result = await author.register_cred_def(cred_def, taa)
-
+    
     rev_reg_def, private = RevocationRegistryDefinition.create(
         cred_def_id=result.cred_def_id,
         cred_def=cred_def,
