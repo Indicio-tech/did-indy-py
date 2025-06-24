@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Dict, Generic, List, Literal, Mapping, TypeVar
+from typing import Any, Dict, Generic, List, Literal, Mapping, TypeVar, Optional
 
 from pydantic import BaseModel, Field
 
@@ -24,7 +24,7 @@ class CredDefTxnDataData(BaseModel):
     """Cred Def Transaction txn.data.data."""
 
     primary: Dict[str, Any]
-    revocation: Dict[str, Any]
+    revocation: Optional[Dict[str, Any]] = None
 
 
 class CredDefTxnData(BaseModel):
