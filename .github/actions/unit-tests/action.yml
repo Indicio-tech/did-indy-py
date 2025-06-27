@@ -26,10 +26,11 @@ runs:
       run: |
         pip install --upgrade pdm
         pdm install
+        pdm add pytest-cov pytest-html pytest-xdist pytest-ruff
     - name: Run tests
       shell: bash
       run: |
-        pdm run pytest tests --cov=src/didindy --cov-report=xml --cov-report=html --cov-report=term-missing 2>&1 | tee pytest_output.log
+        pdm run pytest -n auto --cov=src/didindy --cov-report=xml --cov-report=html --cov-report=term-missing 2>&1 | tee pytest_output.log
         PYTEST_EXIT_CODE=${PIPESTATUS[0]}
         if grep -Eq "RuntimeWarning: coroutine '.*' was never awaited" pytest_output.log; then
           echo "Warning: Unawaited coroutine detected in tests."
