@@ -11,12 +11,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/ruff-action@v3
-        args: check
-        src:
-          - "./src"
-          - "./tests"
+        with:
+          args: check
+          src:
+            - "./src"
+            - "./tests"
       - uses: astral-sh/ruff-action@v3
-        args: format --check
-        src:
-          - "./src"
-          - "./tests"
+        with:
+          args: format --check
+          src:
+            - "./src"
+            - "./tests"
