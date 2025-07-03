@@ -3,29 +3,21 @@
 import asyncio
 import base64
 import hashlib
-from io import StringIO
-import json
 import logging
 import os
-from pathlib import Path
 import tempfile
+from io import StringIO
+from pathlib import Path
 from typing import Optional, TypeVar, cast
 
 from indy_vdr import Pool, Request, VdrError, ledger, open_pool
-from indy_vdr.bindings import dereference, resolve
 
-from did_indy.models.taa import TAAInfo, TAARecord, TaaAcceptance
-from did_indy.models.txn import (
-    CredDefDeref,
-    Endorsement,
-    RevRegDefDeref,
-    SchemaDeref,
-)
-from did_indy.signer import sign_message, Signer
 from did_indy.cache import Cache
 from did_indy.config import LocalLedgerGenesis, RemoteLedgerGenesis
+from did_indy.models.endorsement import Endorsement
+from did_indy.models.taa import TaaAcceptance, TAAInfo, TAARecord
+from did_indy.signer import Signer, sign_message
 from did_indy.utils import FetchError, fetch
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -387,50 +379,6 @@ class BaseLedger:
             )
 
         return TAAInfo(aml=aml_found, taa=taa_record, required=taa_required)
-
-    async def resolve(self, did: str) -> dict:
-        """Resolve a did:indy DID."""
-        if not self.pool.handle or not self.pool.handle.handle:
-            raise ClosedPoolError(
-                f"Cannot sign and submit request to closed pool '{self.pool.name}'"
-            )
-
-        try:
-            result = json.loads(await resolve(self.pool.handle.handle, did))  # pyright: ignore
-        except VdrError as err:
-            raise LedgerTransactionError("Ledger request error") from err
-        return result
-
-    async def dereference(self, did_url: str) -> dict:
-        """Dereference a DID URL to an object."""
-        if not self.pool.handle or not self.pool.handle.handle:
-            raise ClosedPoolError(
-                f"Cannot sign and submit request to closed pool '{self.pool.name}'"
-            )
-
-        try:
-            result = json.loads(await dereference(self.pool.handle.handle, did_url))
-        except VdrError as err:
-            raise LedgerTransactionError("Ledger request error") from err
-        return result
-
-    async def get_schema(self, schema_id: str) -> SchemaDeref:
-        """Retrieve schema by ID (DID URL)."""
-        result = await self.dereference(schema_id)
-        schema_result = SchemaDeref.model_validate(result)
-        return schema_result
-
-    async def get_cred_def(self, cred_def_id: str) -> CredDefDeref:
-        """Retrieve cred def by ID (DID URL)."""
-        result = await self.dereference(cred_def_id)
-        cred_def_result = CredDefDeref.model_validate(result)
-        return cred_def_result
-
-    async def get_rev_reg_def(self, rev_reg_def_id: str) -> RevRegDefDeref:
-        """Retrieve a rev reg def by ID (DID URL)."""
-        result = await self.dereference(rev_reg_def_id)
-        rev_reg_def_result = RevRegDefDeref.model_validate(result)
-        return rev_reg_def_result
 
 
 class ReadOnlyLedger(BaseLedger):

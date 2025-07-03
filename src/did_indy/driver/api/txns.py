@@ -55,6 +55,7 @@ from did_indy.models.txn import (
     TxnRequest,
     TxnResult,
 )
+from did_indy.resolver import Resolver
 
 router = APIRouter(prefix="/txn")
 LOGGER = logging.getLogger(__name__)
@@ -359,9 +360,9 @@ async def post_cred_def(
     if not pool:
         raise HTTPException(404, f"No ledger known for namespace {submitter.namespace}")
 
-    async with Ledger(pool) as ledger:
+    async with Resolver(pool) as resolver:
         try:
-            schema_deref = await ledger.get_schema(req.cred_def.schema_id)
+            schema_deref = await resolver.get_schema(req.cred_def.schema_id)
         except LedgerTransactionError as error:
             raise HTTPException(400, f"Cannot retrieve schema: {error}") from error
 

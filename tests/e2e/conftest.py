@@ -119,3 +119,9 @@ def pytest_collect_file(parent: Session, file_path: Path):
     """
     if file_path == Path(__file__):
         return DemoFile.from_parent(parent, path=DEMO_DIR)
+
+
+def pytest_collection_modifyitems(config, items):
+    for item in items:
+        if item.fspath.dirname.endswith("e2e"):
+            item.add_marker(pytest.mark.e2e)
