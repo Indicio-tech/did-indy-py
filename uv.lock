@@ -109,6 +109,7 @@ client = [
 ]
 demo = [
     { name = "anoncreds" },
+    { name = "aries-askar" },
 ]
 driver = [
     { name = "aries-askar" },
@@ -132,6 +133,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anoncreds", marker = "extra == 'demo'", specifier = ">=0.2.0" },
+    { name = "aries-askar", marker = "extra == 'demo'", specifier = ">=0.3.2" },
     { name = "aries-askar", marker = "extra == 'driver'", specifier = ">=0.3.2" },
     { name = "base58", marker = "extra == 'driver'", specifier = ">=2.1.1" },
     { name = "fastapi", extras = ["standard"], marker = "extra == 'driver'", specifier = ">=0.115.4" },
