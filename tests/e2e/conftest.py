@@ -13,7 +13,7 @@ class DemoFailedException(Exception):
     """Raised when an demo fails."""
 
     def __init__(self, message: str, exit_status: int):
-        """Initialize ExampleFailedException."""
+        """Initialize DemoFailedException."""
 
         super().__init__(message)
         self.exit_status = exit_status
@@ -23,7 +23,7 @@ class DemoRunner:
     """Run the docker-compose of the demo."""
 
     def __init__(self, compose_file: str):
-        """Initialize ExampleRunner."""
+        """Initialize DemoRunner."""
 
         self.compose_file = compose_file
 
@@ -80,14 +80,14 @@ class DemoFile(pytest.File):
 
 
 class DemoItem(pytest.Item):
-    """Example item.
+    """Demo item.
 
     Runs the docker-compose.yml file of the demo and reports failure if the
     exit status is non-zero.
     """
 
     def __init__(self, name: str, parent: pytest.File, compose_file: str):
-        """Initialize ExampleItem."""
+        """Initialize DemoItem."""
         super().__init__(name, parent)
         self.compose_file = compose_file
 
@@ -100,7 +100,7 @@ class DemoItem(pytest.Item):
         if isinstance(excinfo.value, DemoFailedException):
             return "\n".join(
                 [
-                    "Example failed!",
+                    "Demo failed!",
                     f"    {excinfo.value}",
                 ]
             )
