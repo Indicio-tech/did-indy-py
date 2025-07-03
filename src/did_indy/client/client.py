@@ -16,7 +16,7 @@ from did_indy.driver.api.txns import (
     SchemaSubmitResponse,
     TxnToSignResponse,
 )
-from did_indy.models.txn import Endorsement
+from did_indy.models.endorsement import Endorsement
 
 from .http import HTTPClient
 
