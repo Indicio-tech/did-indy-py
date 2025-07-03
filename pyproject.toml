@@ -50,5 +50,6 @@ module-name = "did_indy"
 addopts = "-m 'not e2e'"
 markers = [
   "e2e: End-to-end tests",
-  "unit: Unit tests"
+  "unit: Unit tests",
+  "integration: Integration tests"
 ]

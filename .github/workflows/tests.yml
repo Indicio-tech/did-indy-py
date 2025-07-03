@@ -28,7 +28,7 @@ jobs:
       - name: Install project
         run: uv sync --locked --all-extras --dev
 
-      - name: "Typecheck with ty"
+      - name: "Unit tests"
         run: uv run pytest -m unit
 
   integration:
@@ -52,7 +52,7 @@ jobs:
       - name: Install project
         run: uv sync --locked --all-extras --dev
 
-      - name: "Typecheck with ty"
+      - name: "Integration tests"
         run: uv run pytest -m integration
 
   e2e:
@@ -76,5 +76,5 @@ jobs:
       - name: Install project
         run: uv sync --locked --all-extras --dev
 
-      - name: "Typecheck with ty"
+      - name: "End-to-end tests"
         run: uv run pytest -m e2e
