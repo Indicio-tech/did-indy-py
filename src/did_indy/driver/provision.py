@@ -14,3 +14,7 @@ async def provision():
 def main():
     """Entrypoint."""
     asyncio.run(provision())
+
+
+if __name__ == "__main__":
+    main()
