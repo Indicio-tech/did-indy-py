@@ -8,7 +8,7 @@ on:
 
 jobs:
   ty:
-    name: python
+    name: ty
     runs-on: ubuntu-latest
 
     steps:
