@@ -45,3 +45,10 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-name = "did_indy"
+
+[tool.pytest.ini_options]
+addopts = "-m 'not e2e'"
+markers = [
+  "e2e: End-to-end tests",
+  "unit: Unit tests"
+]
