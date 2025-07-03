@@ -1,10 +1,12 @@
 """Resolver API."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Security
 from pydantic import BaseModel
 
 from did_indy.did import parse_did_indy, parse_did_indy_from_url
+from did_indy.driver.auto_endorse import SCOPE_RESOLVE
 from did_indy.driver.depends import LedgersDep
+from did_indy.driver.security import client
 from did_indy.models.txn.deref import CredDefDeref, RevRegDefDeref, SchemaDeref
 from did_indy.resolver import Resolver
 
@@ -12,7 +14,11 @@ router = APIRouter(tags=["Resolver"])
 
 
 @router.get("/resolve/{did}")
-async def get_resolve_did(did: str, ledgers: LedgersDep):
+async def get_resolve_did(
+    did: str,
+    ledgers: LedgersDep,
+    _=Security(client, scopes=[SCOPE_RESOLVE]),
+):
     """Resolve a did:indy DID."""
     parsed = parse_did_indy(did)
 
@@ -33,7 +39,11 @@ class ResolveRequest(BaseModel):
 
 
 @router.post("/resolve")
-async def post_resolve(req: ResolveRequest, ledgers: LedgersDep):
+async def post_resolve(
+    req: ResolveRequest,
+    ledgers: LedgersDep,
+    _=Security(client, scopes=[SCOPE_RESOLVE]),
+):
     """Resolve a did:indy DID.
 
     This does exactly the same resolution as `GET /resolve/{did}` but uses the
@@ -59,7 +69,9 @@ class SchemaDerefRequest(BaseModel):
 
 @router.post("/dereference/schema")
 async def post_dereference_schema(
-    req: SchemaDerefRequest, ledgers: LedgersDep
+    req: SchemaDerefRequest,
+    ledgers: LedgersDep,
+    _=Security(client, scopes=[SCOPE_RESOLVE]),
 ) -> SchemaDeref:
     """Dereference a DID URL."""
     parsed = parse_did_indy_from_url(req.schema_id)
@@ -82,7 +94,9 @@ class CredDefDerefRequest(BaseModel):
 
 @router.post("/dereference/cred-def")
 async def post_dereference_cred_def(
-    req: CredDefDerefRequest, ledgers: LedgersDep
+    req: CredDefDerefRequest,
+    ledgers: LedgersDep,
+    _=Security(client, scopes=[SCOPE_RESOLVE]),
 ) -> CredDefDeref:
     """Dereference a DID URL."""
     parsed = parse_did_indy_from_url(req.cred_def_id)
@@ -105,7 +119,9 @@ class RevRegDefDerefRequest(BaseModel):
 
 @router.post("/dereference/rev-reg-def")
 async def post_dereference_rev_reg_def(
-    req: RevRegDefDerefRequest, ledgers: LedgersDep
+    req: RevRegDefDerefRequest,
+    ledgers: LedgersDep,
+    _=Security(client, scopes=[SCOPE_RESOLVE]),
 ) -> RevRegDefDeref:
     """Dereference a DID URL."""
     parsed = parse_did_indy_from_url(req.rev_reg_def_id)

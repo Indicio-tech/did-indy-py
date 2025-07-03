@@ -13,6 +13,7 @@ class ClientAutoEndorseRules(BaseModel):
     rev_reg_entries: bool = True
 
 
+SCOPE_RESOLVE = "resolve"
 SCOPE_NYM_NEW = "nym:new"
 SCOPE_NYM_UPDATE = "nym:update"
 SCOPE_NYM_ROLE_CHANGE = "nym:role-change"
@@ -22,6 +23,7 @@ SCOPE_REV_REG_DEF = "rev-reg-def"
 SCOPE_REV_REG_ENTRY = "rev-reg-entry"
 
 ALL_SCOPES = [
+    SCOPE_RESOLVE,
     SCOPE_NYM_NEW,
     SCOPE_NYM_UPDATE,
     SCOPE_NYM_ROLE_CHANGE,
@@ -35,6 +37,10 @@ ALL_SCOPES = [
 def derive_scopes(rules: ClientAutoEndorseRules) -> list[str]:
     """Derive scopes from rules."""
     scopes = []
+
+    # All who are authenticated may resolve
+    scopes.append(SCOPE_RESOLVE)
+
     if rules.new_nyms > 0:
         scopes.append(SCOPE_NYM_NEW)
 
