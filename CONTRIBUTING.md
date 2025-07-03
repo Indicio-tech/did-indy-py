@@ -32,13 +32,13 @@ pre-commit install --hook-type commit-msg
 
 ## Notes on Actions
 
-### Typechecking: Ty and Pyright
+### Type checking: Ty and Pyright
 
-Typechecking is performed automatically on pull requests using both [Ty][ty] and [Pyright][pyright].
+Type checking is performed automatically on pull requests using both [Ty][ty] and [Pyright][pyright].
 
 [ty]: https://github.com/astral-sh/ty
 [pyright]: https://github.com/microsoft/pyright
 
-Ty is a new typechecker developed by Astral. It is currently in alpha. We check the codebase with ty and expect there to be complaints for now. PRs with a failing check from ty do not necessarily require attention if typechecking with Pyright passes.
+Ty is a new type checker developed by Astral. It is currently in alpha. We check the codebase with ty and expect there to be complaints for now. PRs with a failing check from ty do not necessarily require attention if type checking with Pyright passes.
 
-Our strategy for typechecking is "gradual;" failing type checks or using casts, Any, `type: ignore`, etc. are not deal breakers. But we should strive for keeping a reasonable level of type information to keep the quality of the code high without getting too in the weeds on types.
+Our strategy for type checking is "gradual;" failing type checks or using casts, Any, `type: ignore`, etc. are not deal breakers. But we should strive for keeping a reasonable level of type information to keep the quality of the code high without getting too in the weeds on types.
