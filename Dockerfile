@@ -1,25 +1,15 @@
-FROM python:3.12-slim-bookworm as base
-WORKDIR /usr/src/app
-
-RUN apt-get update && apt-get install -y curl && apt-get clean
-ENV PDM_VERSION=2.24.0
-ENV PDM_HOME=/opt/pdm
-RUN curl -sSL https://pdm-project.org/install-pdm.py | python3 -
-
-
 FROM python:3.12-slim-bookworm
 WORKDIR /usr/src/app
-COPY --from=base /opt/pdm /opt/pdm
-
-ENV PATH="/opt/pdm/bin:$PATH"
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Setup project
-COPY pyproject.toml pdm.lock README.md ./
-RUN mkdir -p src/did_indy && touch src/did_indy/__init__.py
-RUN pdm install -G :all
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --locked --no-install-project --all-extras
 
 COPY healthcheck.py ./
+COPY scripts/ scripts/
 COPY src ./src
+RUN uv sync --locked --all-extras
 
-ENTRYPOINT ["pdm", "run"]
+ENTRYPOINT ["uv", "run"]
 CMD ["fastapi", "dev", "src/did_indy/driver/app.py", "--host", "0.0.0.0", "--port", "80"]

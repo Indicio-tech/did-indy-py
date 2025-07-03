@@ -11,7 +11,35 @@ from indy_vdr.error import VdrErrorCode
 from indy_vdr.ledger import build_nym_request
 from pydantic import BaseModel, Field
 
+from did_indy.anoncreds import (
+    indy_cred_def_request,
+    indy_rev_reg_def_request,
+    indy_rev_reg_entry_request,
+    indy_rev_reg_initial_entry_request,
+    indy_schema_request,
+    make_cred_def_id_from_result,
+    make_indy_cred_def_id_from_result,
+    make_indy_rev_reg_def_id,
+    make_indy_schema_id_from_schema,
+    make_rev_reg_def_id_from_result,
+    make_schema_id_from_schema,
+)
 from did_indy.did import nym_from_verkey, parse_did_indy
+from did_indy.driver.auto_endorse import (
+    SCOPE_CRED_DEF,
+    SCOPE_NYM_NEW,
+    SCOPE_REV_REG_DEF,
+    SCOPE_REV_REG_ENTRY,
+    SCOPE_SCHEMA,
+)
+from did_indy.driver.depends import LedgersDep, StoreDep
+from did_indy.driver.ledgers import NymNotFoundError, get_nym_and_key
+from did_indy.driver.security import client
+from did_indy.driver.taa import get_latest_txn_author_acceptance
+from did_indy.ledger import (
+    Ledger,
+    LedgerTransactionError,
+)
 from did_indy.models.anoncreds import CredDef, RevRegDef, RevStatusList, Schema
 from did_indy.models.taa import TaaAcceptance
 from did_indy.models.txn import (
@@ -27,34 +55,6 @@ from did_indy.models.txn import (
     TxnRequest,
     TxnResult,
 )
-from did_indy.anoncreds import (
-    indy_cred_def_request,
-    indy_rev_reg_def_request,
-    indy_rev_reg_entry_request,
-    indy_rev_reg_initial_entry_request,
-    indy_schema_request,
-    make_cred_def_id_from_result,
-    make_indy_cred_def_id_from_result,
-    make_indy_rev_reg_def_id,
-    make_indy_schema_id_from_schema,
-    make_rev_reg_def_id_from_result,
-    make_schema_id_from_schema,
-)
-from did_indy.driver.auto_endorse import (
-    SCOPE_CRED_DEF,
-    SCOPE_NYM_NEW,
-    SCOPE_REV_REG_DEF,
-    SCOPE_REV_REG_ENTRY,
-    SCOPE_SCHEMA,
-)
-from did_indy.driver.depends import LedgersDep, StoreDep
-from did_indy.ledger import (
-    Ledger,
-    LedgerTransactionError,
-)
-from did_indy.driver.ledgers import NymNotFoundError, get_nym_and_key
-from did_indy.driver.security import client
-from did_indy.driver.taa import get_latest_txn_author_acceptance
 
 router = APIRouter(prefix="/txn")
 LOGGER = logging.getLogger(__name__)
@@ -128,7 +128,7 @@ async def post_nym(
             version=version,
         )
         try:
-            result = await ledger.submit(request, key.sign_message, taa)
+            result = await ledger.submit(request, key.sign_message, taa)  # pyright: ignore[reportArgumentType]
         except VdrError as error:
             if error.code == VdrErrorCode.POOL_REQUEST_FAILED:
                 raise HTTPException(400, detail=str(error))
@@ -248,7 +248,7 @@ async def post_schema_submit(
             submitter=submitter.nym,
             submitter_signature=req.signature,
             nym=nym,
-            signer=key.sign_message,
+            signer=key.sign_message,  # pyright: ignore[reportArgumentType]
         )
 
     result = TxnResult[SchemaTxnData].model_validate(result)
@@ -308,7 +308,7 @@ async def post_schema_endorse(
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
-        endorsement = await ledger.endorse(req.request, nym, key.sign_message)
+        endorsement = await ledger.endorse(req.request, nym, key.sign_message)  # pyright: ignore[reportArgumentType]
 
     return EndorseResponse(
         nym=endorsement.nym,
@@ -406,7 +406,7 @@ async def post_cred_def_submit(
             submitter=submitter.nym,
             submitter_signature=req.signature,
             nym=nym,
-            signer=key.sign_message,
+            signer=key.sign_message,  # pyright: ignore[reportArgumentType]
         )
         result = TxnResult[CredDefTxnData].model_validate(result)
 
@@ -444,7 +444,7 @@ async def post_cred_def_endorse(
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
-        endorsement = await ledger.endorse(req.request, nym, key.sign_message)
+        endorsement = await ledger.endorse(req.request, nym, key.sign_message)  # pyright: ignore[reportArgumentType]
 
     return EndorseResponse(
         nym=endorsement.nym,
@@ -534,7 +534,7 @@ async def post_rev_reg_def_submit(
             submitter=submitter.nym,
             submitter_signature=req.signature,
             nym=nym,
-            signer=key.sign_message,
+            signer=key.sign_message,  # pyright: ignore[reportArgumentType]
         )
         result = TxnResult[RevRegDefTxnData].model_validate(result)
 
@@ -572,7 +572,7 @@ async def post_rev_reg_def_endorse(
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
-        endorsement = await ledger.endorse(req.request, nym, key.sign_message)
+        endorsement = await ledger.endorse(req.request, nym, key.sign_message)  # pyright: ignore[reportArgumentType]
 
     return EndorseResponse(
         nym=endorsement.nym,
@@ -663,7 +663,7 @@ async def post_rev_status_list_submit(
             submitter=submitter.nym,
             submitter_signature=req.signature,
             nym=nym,
-            signer=key.sign_message,
+            signer=key.sign_message,  # pyright: ignore[reportArgumentType]
         )
         result = TxnResult[RevRegEntryTxnData].model_validate(result)
 
@@ -697,7 +697,7 @@ async def post_rev_status_list_endorse(
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
-        endorsement = await ledger.endorse(req.request, nym, key.sign_message)
+        endorsement = await ledger.endorse(req.request, nym, key.sign_message)  # pyright: ignore[reportArgumentType]
 
     return EndorseResponse(
         nym=endorsement.nym,
@@ -780,7 +780,7 @@ async def post_rev_status_list_update_submit(
             submitter=submitter.nym,
             submitter_signature=req.signature,
             nym=nym,
-            signer=key.sign_message,
+            signer=key.sign_message,  # pyright: ignore[reportArgumentType]
         )
         result = TxnResult[RevRegEntryTxnData].model_validate(result)
 
@@ -814,7 +814,7 @@ async def post_rev_status_list_update_endorse(
         raise HTTPException(400, detail="Incorrect endorser nym on request")
 
     async with Ledger(pool) as ledger:
-        endorsement = await ledger.endorse(req.request, nym, key.sign_message)
+        endorsement = await ledger.endorse(req.request, nym, key.sign_message)  # pyright: ignore[reportArgumentType]
 
     return EndorseResponse(
         nym=endorsement.nym,
