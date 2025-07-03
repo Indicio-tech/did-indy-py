@@ -7,7 +7,7 @@ from did_indy.driver.depends import lifespan
 
 async def provision():
     """Provisioning"""
-    async with lifespan(None):
+    async with lifespan(None):  # type: ignore
         pass
 
 
