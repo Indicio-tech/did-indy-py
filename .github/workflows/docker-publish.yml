@@ -51,7 +51,7 @@ jobs:
   publish:
     name: Publish Docker Container
     needs: [tests, setup_and_check_publish]
-    if: needs.setup_and_check_publish.outputs.commits_today > 0
+    # if: needs.setup_and_check_publish.outputs.commits_today > 0 || github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/publish.yml
     strategy:
       matrix:
