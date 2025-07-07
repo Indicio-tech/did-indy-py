@@ -94,8 +94,6 @@ jobs:
             ghcr.io/${{ steps.lowercase_owner.outputs.lowercase_owner }}/did-indy-py
           tags: |
             type=raw,value=py${{ matrix.python-version }}-${{ inputs.tag || github.event.release.tag_name }}
-          flavor: |
-            ${{ matrix.arch }}
           labels: |
             org.opencontainers.image.created=${{ github.event.release.published_at }}
             org.opencontainers.image.revision=${{ github.sha }}
