@@ -31,8 +31,8 @@ jobs:
     name: Setup Publish
     runs-on: ubuntu-latest
     outputs:
-      commits_today: ${{ steps.get_commits.outputs.commits_today }}
-      date: ${{ steps.get_commits.outputs.date }}
+      commits_today: ${{ steps.commits.outputs.commits_today }}
+      date: ${{ steps.date.outputs.date }}
     if: github.repository_owner == 'Indicio-tech' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout code
