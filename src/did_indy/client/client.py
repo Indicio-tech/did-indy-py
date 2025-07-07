@@ -104,7 +104,7 @@ class IndyDriverClient(HTTPClient):
 
     async def get_namespaces(self) -> List[str]:
         """Get namespaces."""
-        result = await self.get("/namespace")
+        result = await self.get("/info")
         return result["namespaces"]
 
     async def get_taa(self, namespace: str) -> TAAInfo:
