@@ -60,6 +60,16 @@ def logging_to_stdout():
     logging.getLogger("did_indy").setLevel(LOG_LEVEL.upper())
 
 
+def get_signer(key: Key):
+    """Return a signer."""
+
+    async def _signer(signature_input: bytes) -> bytes:
+        """Signer protocol implementer for key."""
+        return key.sign_message(signature_input)
+
+    return _signer
+
+
 async def thin():
     """Demo a thin client."""
     logging_to_stdout()
@@ -79,7 +89,7 @@ async def thin():
     taa = await client.accept_taa(taa_info, "on_file")
 
     nym = generate_nym()
-    author = AuthorLite(client, nym.key.sign_message)
+    author = AuthorLite(client, get_signer(nym.key))
     result = await author.create_nym(NAMESPACE, nym.verkey, taa=taa)
     did = result.did
 
@@ -97,6 +107,7 @@ async def thin():
         support_revocation=True,
     )
     result = await author.register_cred_def(cred_def, taa)
+
     rev_reg_def, private = RevocationRegistryDefinition.create(
         cred_def_id=result.cred_def_id,
         cred_def=cred_def,
@@ -140,7 +151,7 @@ class AuthorDependenciesBasic(AuthorDependencies):
         self.pool = pool
 
     async def get_signer(self, did: str) -> Signer:
-        return self.key.sign_message
+        return self.key.sign_message  # type: ignore
 
     async def get_pool(self, namespace: str) -> LedgerPool:
         return self.pool

@@ -27,20 +27,9 @@ client = [
     "pydantic>=2.9.2",
 ]
 demo = [
+    "aries-askar>=0.3.2",
     "anoncreds>=0.2.0",
 ]
-
-
-[tool.pdm]
-distribution = true
-[tool.pdm.scripts]
-provision = {call = "did_indy.driver.provision:main"}
-dev = "fastapi dev src/did_indy/driver/app.py --host 0.0.0.0 --port 80"
-
-[build-system]
-requires = ["pdm-backend"]
-build-backend = "pdm.backend"
-
 
 [dependency-groups]
 dev = [
@@ -52,4 +41,19 @@ dev = [
     "pytest-html>=4.1.1",
     "pytest-xdist>=3.8.0",
     "pytest-ruff>=0.5",
+]
+
+[build-system]
+requires = ["uv_build>=0.7.19,<0.8.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "did_indy"
+
+[tool.pytest.ini_options]
+addopts = "-m 'not e2e'"
+markers = [
+  "e2e: End-to-end tests",
+  "unit: Unit tests",
+  "integration: Integration tests"
 ]

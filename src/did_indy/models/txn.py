@@ -169,6 +169,7 @@ class GetSchemaReply(BaseModel):
     txnTime: int
     type: str
 
+
 SchemaDeref = DereferenceResult[SchemaTxnDataData, GetSchemaReply]
 
 
@@ -187,11 +188,12 @@ class GetCredDefReply(BaseModel):
     txnTime: int
     type: str
 
+
 CredDefDeref = DereferenceResult[CredDefTxnDataData, GetCredDefReply]
 
 
 class GetRevRegDefReply(BaseModel):
-    """ Get revocation registry definition reply. """
+    """Get revocation registry definition reply."""
 
     data: RevRegDefTxnData
     id: str
@@ -201,6 +203,7 @@ class GetRevRegDefReply(BaseModel):
     state_proof: Any
     txnTime: int
     type: str
+
 
 RevRegDefDeref = DereferenceResult[RevRegDefTxnData, GetRevRegDefReply]
 
