@@ -9,22 +9,7 @@ on:
 jobs:
   tests:
     if: github.repository_owner == 'Indicio-tech' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-        python-version: [3.12]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Run Tests
-        uses: ./.github/actions/unit-tests
-        with:
-          python-version: ${{ matrix.python-version }}
-          os: ${{ matrix.os }}
-          is_pr: "false"
+    uses: ./.github/workflows/tests.yml
 
   setup_and_check_publish:
     name: Setup Publish
