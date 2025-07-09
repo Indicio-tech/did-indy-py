@@ -35,6 +35,7 @@ from did_indy.driver.api.txns import (
     SchemaSubmitResponse,
     make_indy_cred_def_id_from_result,
 )
+from did_indy.resolver import Resolver
 from did_indy.signer import Signer
 from did_indy.ledger import Ledger, LedgerPool, LedgerTransactionError
 from did_indy.models.anoncreds import Schema
@@ -176,9 +177,9 @@ class Author(BaseAuthor):
                 f"Failed to get signer for DID {cred_def.issuer_id}"
             ) from err
 
-        async with Ledger(pool) as ledger:
+        async with Ledger(pool) as ledger, Resolver(pool) as resolver:
             try:
-                schema_deref = await ledger.get_schema(cred_def.schema_id)
+                schema_deref = await resolver.get_schema(cred_def.schema_id)
             except LedgerTransactionError as error:
                 LOGGER.exception("Failed to retrieve schema")
                 raise AuthorError(f"Cannot retrieve schema: {error}") from error
