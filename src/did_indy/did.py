@@ -13,6 +13,7 @@ class DidIndy:
 
     namespace: str
     nym: str
+    did: str
 
 
 def parse_did_indy(did: str) -> DidIndy:
@@ -22,7 +23,7 @@ def parse_did_indy(did: str) -> DidIndy:
 
     method_and_namespace, nym = did.rsplit(":", maxsplit=1)
     namespace = method_and_namespace.removeprefix("did:indy:")
-    return DidIndy(namespace, nym)
+    return DidIndy(namespace, nym, did)
 
 
 def parse_did_indy_from_url(did_url: str) -> DidIndy:
@@ -33,7 +34,7 @@ def parse_did_indy_from_url(did_url: str) -> DidIndy:
     did, _ = re.split(r"/|\?|#", did_url, maxsplit=1)
     method_and_namespace, nym = did.rsplit(":", maxsplit=1)
     namespace = method_and_namespace.removeprefix("did:indy:")
-    return DidIndy(namespace, nym)
+    return DidIndy(namespace, nym, did)
 
 
 def nym_from_verkey(verkey: str, version: int = 2) -> str:

@@ -5,19 +5,20 @@ from typing import Any
 
 from anoncreds import (
     CredentialDefinition,
-    RevocationStatusList,
-    Schema as ACSchema,
     RevocationRegistryDefinition,
+    RevocationStatusList,
 )
-from indy_vdr import Request
-from indy_vdr import ledger
+from anoncreds import (
+    Schema as ACSchema,
+)
+from indy_vdr import Request, ledger
 
 from did_indy.did import parse_did_indy
 from did_indy.models.anoncreds import (
+    CredDef,
     RevRegDef,
     RevStatusList,
     Schema,
-    CredDef,
 )
 from did_indy.models.txn import CredDefTxnData, RevRegDefTxnData
 
@@ -148,6 +149,12 @@ def make_indy_cred_def_id(nym: str, type: str, schema_seq_no: int, tag: str) -> 
 def make_cred_def_id(did: str, ref: int | str, tag: str) -> str:
     """Make cred def ID."""
     return f"{did}/anoncreds/v0/CLAIM_DEF/{ref}/{tag}"
+
+
+def make_cred_def_id_from_indy(namespace: str, indy_cred_def_id) -> str:
+    """Make cred def ID."""
+    nym, _, _, ref, tag = indy_cred_def_id.split(":")
+    return f"did:indy:{namespace}:{nym}/anoncreds/v0/CLAIM_DEF/{ref}/{tag}"
 
 
 def make_indy_cred_def_id_from_result(nym: str, cred_def: CredDefTxnData) -> str:

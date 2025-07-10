@@ -7,6 +7,8 @@ from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel
 
+from did_indy.models.txn.result import TxnResult
+
 from .data import (
     CredDefTxnDataData,
     RevRegDefTxnData,
@@ -88,3 +90,15 @@ class DereferenceResult(BaseModel, Generic[ContentStream, ContentMetadata]):
 SchemaDeref = DereferenceResult[SchemaTxnDataData, GetSchemaReply]
 CredDefDeref = DereferenceResult[CredDefTxnDataData, GetCredDefReply]
 RevRegDefDeref = DereferenceResult[RevRegDefTxnData, GetRevRegDefReply]
+
+Txn = TypeVar("Txn", bound=BaseModel)
+
+
+class GetTxnReply(BaseModel, Generic[Txn]):
+    """Get txn reply."""
+
+    type: str
+    identifier: str
+    reqId: int
+    seqNo: int
+    data: TxnResult[Txn]
