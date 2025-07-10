@@ -7,7 +7,7 @@ from did_indy.did import parse_did_indy, parse_did_indy_from_url
 from did_indy.driver.auto_endorse import SCOPE_RESOLVE
 from did_indy.driver.depends import LedgersDep
 from did_indy.driver.security import client
-from did_indy.models.txn.deref import CredDefDeref, RevRegDefDeref, SchemaDeref
+from did_indy.models.anoncreds import CredDef, RevRegDef, RevStatusList, Schema
 from did_indy.resolver import Resolver
 
 router = APIRouter(tags=["Resolver"])
@@ -27,7 +27,7 @@ async def get_resolve_did(
         raise HTTPException(404, detail=f"Namespace {parsed.namespace} is unknown")
 
     async with Resolver(pool) as resolver:
-        result = await resolver.resolve(did)
+        result = await resolver.resolve_did(did)
 
     return result
 
@@ -56,7 +56,7 @@ async def post_resolve(
         raise HTTPException(404, detail=f"Namespace {parsed.namespace} is unknown")
 
     async with Resolver(pool) as resolver:
-        result = await resolver.resolve(req.did)
+        result = await resolver.resolve_did(req.did)
 
     return result
 
@@ -72,7 +72,7 @@ async def post_dereference_schema(
     req: SchemaDerefRequest,
     ledgers: LedgersDep,
     _=Security(client, scopes=[SCOPE_RESOLVE]),
-) -> SchemaDeref:
+) -> Schema:
     """Dereference a DID URL."""
     parsed = parse_did_indy_from_url(req.schema_id)
 
@@ -97,7 +97,7 @@ async def post_dereference_cred_def(
     req: CredDefDerefRequest,
     ledgers: LedgersDep,
     _=Security(client, scopes=[SCOPE_RESOLVE]),
-) -> CredDefDeref:
+) -> CredDef:
     """Dereference a DID URL."""
     parsed = parse_did_indy_from_url(req.cred_def_id)
 
@@ -122,7 +122,7 @@ async def post_dereference_rev_reg_def(
     req: RevRegDefDerefRequest,
     ledgers: LedgersDep,
     _=Security(client, scopes=[SCOPE_RESOLVE]),
-) -> RevRegDefDeref:
+) -> RevRegDef:
     """Dereference a DID URL."""
     parsed = parse_did_indy_from_url(req.rev_reg_def_id)
 
@@ -132,5 +132,36 @@ async def post_dereference_rev_reg_def(
 
     async with Resolver(pool) as resolver:
         result = await resolver.get_rev_reg_def(req.rev_reg_def_id)
+
+    return result
+
+
+class ResolveRevStatusListRequest(BaseModel):
+    """Resolve rev status list request."""
+
+    rev_reg_def_id: str
+    timestamp_from: int | None = 0
+    timestamp_to: int | None = None
+
+
+@router.post("/resolve/rev-status-list")
+async def post_resolve_rev_status_list(
+    req: ResolveRevStatusListRequest,
+    ledgers: LedgersDep,
+    _=Security(client, scopes=[SCOPE_RESOLVE]),
+) -> RevStatusList:
+    """Resolve a revocation status list."""
+    parsed = parse_did_indy_from_url(req.rev_reg_def_id)
+
+    pool = ledgers.get(parsed.namespace)
+    if not pool:
+        raise HTTPException(404, detail=f"Namespace {parsed.namespace} is unknown")
+
+    async with Resolver(pool) as resolver:
+        result = await resolver.get_rev_status_list(
+            rev_reg_def_id=req.rev_reg_def_id,
+            timestamp_from=req.timestamp_from,
+            timestamp_to=req.timestamp_to,
+        )
 
     return result
