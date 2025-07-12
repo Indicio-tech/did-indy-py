@@ -24,7 +24,6 @@ from did_indy.models.txn.deref import (
     CredDefDeref,
     GetRevRegDefReply,
     GetTxnReply,
-    NodeResponse,
     RevRegDefDeref,
     SchemaDeref,
 )
@@ -496,12 +495,13 @@ class BaseLedger:
             raise LedgerError(
                 f"Failed to retrieve rev_status_list for {indy_rev_reg_def_id}"
             ) from err
+        LOGGER.debug("revoc_reg_delta response: %s", response)
 
-        response_value = response["data"]["value"]
-        if response_value["data"]["revocRegDefId"] != indy_rev_reg_def_id:
+        if response["data"]["revocRegDefId"] != indy_rev_reg_def_id:
             raise LedgerError(
                 "ID of revocation registry response does not match requested ID"
             )
+        response_value = response["data"]["value"]
         return response_value
 
     async def get_revoc_reg_delta(
@@ -562,8 +562,8 @@ class BaseLedger:
             revoc_reg_id=indy_rev_reg_def_id,
         )
         result = await self.get(request)
-        response = NodeResponse[GetRevRegDefReply].model_validate(result)
-        max_cred_num = response.result.data.value.max_cred_num
+        response = GetRevRegDefReply.model_validate(result)
+        max_cred_num = response.data.value.max_cred_num
 
         await cache.set(cache_key, max_cred_num)
 
