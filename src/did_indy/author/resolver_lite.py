@@ -5,9 +5,10 @@ from typing import Any
 
 from did_indy.client.client import IndyDriverClient
 from did_indy.models.anoncreds import CredDef, RevRegDef, RevStatusList, Schema
+from did_indy.resolver import ResolverProto
 
 
-class ResolverLite:
+class ResolverLite(ResolverProto):
     """Lite resolver.
 
     This resolver relies on a driver for resolving and dereferencing objects.

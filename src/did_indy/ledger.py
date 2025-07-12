@@ -19,7 +19,7 @@ from did_indy.cache import Cache
 from did_indy.config import LocalLedgerGenesis, RemoteLedgerGenesis
 from did_indy.models.endorsement import Endorsement
 from did_indy.models.taa import TaaAcceptance, TAAInfo, TAARecord
-from did_indy.models.txn.data import SchemaTxnDataData
+from did_indy.models.txn.data import SchemaTxnData
 from did_indy.models.txn.deref import (
     CredDefDeref,
     GetRevRegDefReply,
@@ -411,15 +411,15 @@ class BaseLedger:
         schema_result = SchemaDeref.model_validate(result)
         return schema_result
 
-    async def get_schema_by_seq_no(self, seq_no: int) -> GetTxnReply[SchemaTxnDataData]:
+    async def get_schema_by_seq_no(self, seq_no: int) -> GetTxnReply[SchemaTxnData]:
         request = ledger.build_get_txn_request(
             submitter_did=None,
             ledger_type=LedgerType.DOMAIN,
             seq_no=seq_no,
         )
         result = await self.get(request)
-        response = NodeResponse[GetTxnReply[SchemaTxnDataData]].model_validate(result)
-        return response.result
+        response = GetTxnReply[SchemaTxnData].model_validate(result)
+        return response
 
     async def deref_cred_def(self, cred_def_id: str) -> CredDefDeref:
         """Retrieve cred def by ID (DID URL)."""

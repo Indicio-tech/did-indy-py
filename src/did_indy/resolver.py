@@ -1,6 +1,12 @@
 """Resolver interfaces."""
 
 import json
+from typing import (
+    Any,
+    Awaitable,
+    Mapping,
+    Protocol,
+)
 
 from indy_vdr import VdrError
 from indy_vdr.bindings import resolve
@@ -10,7 +16,11 @@ from did_indy.anoncreds import (
     make_indy_rev_reg_def_id_from_did_url,
     make_schema_id,
 )
-from did_indy.did import parse_did_indy_from_url
+from did_indy.did import (
+    parse_did_indy_from_url,
+    parse_namespace_from_did,
+    parse_namespace_from_did_url,
+)
 from did_indy.ledger import ClosedPoolError, LedgerPool, ReadOnlyLedger
 from did_indy.models.anoncreds import (
     CredDef,
@@ -25,13 +35,103 @@ class ResolverError(Exception):
     """Raised on error in resolver."""
 
 
-class Resolver:
-    """Resolver interface."""
+class ResolverProto(Protocol):
+    """Resolver protocol."""
+
+    async def resolve_did(self, did: str) -> Mapping[str, Any]:
+        """Resolve a did:indy DID."""
+        ...
+
+    async def get_schema(self, schema_id: str) -> Schema:
+        """Retrieve schema by ID (DID URL)."""
+        ...
+
+    async def get_cred_def(self, cred_def_id: str) -> CredDef:
+        """Retrieve cred def by ID (DID URL)."""
+        ...
+
+    async def get_rev_reg_def(self, rev_reg_def_id: str) -> RevRegDef:
+        """Retrieve a rev reg def by ID (DID URL)."""
+        ...
+
+    async def get_rev_status_list(
+        self,
+        rev_reg_def_id: str,
+        timestamp_from: int | None = 0,
+        timestamp_to: int | None = None,
+    ) -> RevStatusList:
+        """Retrieve a rev status list by rev reg def id and time range."""
+        ...
+
+
+class PoolProvider(Protocol):
+    """Pool provider protocol."""
+
+    def get_pool(self, namespace: str) -> LedgerPool | Awaitable[LedgerPool]:
+        """Retrieve the pool for a namespace."""
+        ...
+
+
+class Resolver(ResolverProto):
+    """DID Indy Resolver."""
+
+    def __init__(self, pool_provider: PoolProvider):
+        """Init resolver provider."""
+        self.pool_provider = pool_provider
+
+    async def get_pool(self, namespace: str) -> LedgerPool:
+        """Get pool for namespace."""
+        pool = self.pool_provider.get_pool(namespace)
+        if not isinstance(pool, LedgerPool):
+            pool = await pool
+
+        return pool
+
+    async def resolve_did(self, did: str) -> Mapping[str, Any]:
+        """Resolve a did:indy DID."""
+        pool = await self.get_pool(parse_namespace_from_did(did))
+        async with PoolResolver(pool) as resolver:
+            return await resolver.resolve_did(did)
+
+    async def get_schema(self, schema_id: str) -> Schema:
+        """Retrieve schema by ID (DID URL)."""
+        pool = await self.get_pool(parse_namespace_from_did_url(schema_id))
+        async with PoolResolver(pool) as resolver:
+            return await resolver.get_schema(schema_id)
+
+    async def get_cred_def(self, cred_def_id: str) -> CredDef:
+        """Retrieve cred def by ID (DID URL)."""
+        pool = await self.get_pool(parse_namespace_from_did_url(cred_def_id))
+        async with PoolResolver(pool) as resolver:
+            return await resolver.get_cred_def(cred_def_id)
+
+    async def get_rev_reg_def(self, rev_reg_def_id: str) -> RevRegDef:
+        """Retrieve a rev reg def by ID (DID URL)."""
+        pool = await self.get_pool(parse_namespace_from_did_url(rev_reg_def_id))
+        async with PoolResolver(pool) as resolver:
+            return await resolver.get_rev_reg_def(rev_reg_def_id)
+
+    async def get_rev_status_list(
+        self,
+        rev_reg_def_id: str,
+        timestamp_from: int | None = 0,
+        timestamp_to: int | None = None,
+    ) -> RevStatusList:
+        """Retrieve a rev status list by rev reg def id and time range."""
+        pool = await self.get_pool(parse_namespace_from_did_url(rev_reg_def_id))
+        async with PoolResolver(pool) as resolver:
+            return await resolver.get_rev_status_list(
+                rev_reg_def_id, timestamp_from, timestamp_to
+            )
+
+
+class PoolResolver(ResolverProto):
+    """Resolver interface for a specific LedgerPool."""
 
     def __init__(self, pool: LedgerPool):
         self.pool = pool
 
-    async def __aenter__(self: "Resolver") -> "Resolver":
+    async def __aenter__(self: "PoolResolver") -> "PoolResolver":
         """Context manager entry.
 
         Returns:
@@ -45,7 +145,7 @@ class Resolver:
         """Context manager exit."""
         await self.pool.context_close()
 
-    async def resolve_did(self, did: str) -> dict:
+    async def resolve_did(self, did: str) -> Mapping[str, Any]:
         """Resolve a did:indy DID."""
         if not self.pool.handle or not self.pool.handle.handle:
             raise ClosedPoolError(f"Cannot resolve from closed pool '{self.pool.name}'")
@@ -82,7 +182,7 @@ class Resolver:
         schema_ish = await ledger.get_schema_by_seq_no(seq_no)
 
         schema_nym = schema_ish.identifier
-        schema_data = schema_ish.data.txn.data
+        schema_data = schema_ish.data.txn.data.data
         schema_issuer_id = f"did:indy:{namespace}:{schema_nym}"
 
         schema_id = make_schema_id(
