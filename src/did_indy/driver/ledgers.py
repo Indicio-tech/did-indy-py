@@ -46,6 +46,14 @@ async def get_nym_and_key(store: Store, namespace: str) -> Tuple[str, Key]:
     return nym, key
 
 
+class UnknownNamespaceError(Exception):
+    """Raised when an unknown namespace is encountered."""
+
+    def __init__(self, namespace: str):
+        """Init exception."""
+        self.namespace = namespace
+
+
 class Ledgers:
     """Registry of ledgers, identified by namespace."""
 
@@ -56,6 +64,18 @@ class Ledgers:
         """Add to the registry."""
         self.ledgers[namespace] = pool
 
-    def get(self, namespace: str) -> LedgerPool | None:
+    def get_or(self, namespace: str) -> LedgerPool | None:
         """Get a ledger by namespace."""
         return self.ledgers.get(namespace)
+
+    def get(self, namespace: str) -> LedgerPool:
+        """Get a ledger by namespace."""
+        pool = self.ledgers.get(namespace)
+        if not pool:
+            raise UnknownNamespaceError(namespace)
+
+        return pool
+
+    def get_pool(self, namespace: str) -> LedgerPool:
+        """Alias to match PoolProvider protocol."""
+        return self.get(namespace)

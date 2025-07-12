@@ -1,6 +1,7 @@
 """Client to did:indy driver."""
 
 from base64 import urlsafe_b64encode
+from collections.abc import Mapping
 from datetime import date, datetime, timezone
 import logging
 from typing import Any, List, Optional
@@ -16,7 +17,9 @@ from did_indy.driver.api.txns import (
     SchemaSubmitResponse,
     TxnToSignResponse,
 )
+from did_indy.models.anoncreds import CredDef, RevRegDef, RevStatusList, Schema
 from did_indy.models.endorsement import Endorsement
+
 
 from .http import HTTPClient
 
@@ -433,3 +436,48 @@ class IndyDriverClient(HTTPClient):
             response=EndorseResponse,
         )
         return Endorsement(result.nym, result.get_signature_bytes())
+
+    async def resolve_did(self, did: str) -> Mapping[str, Any]:
+        """Resolve a DID."""
+        return await self.post("/resolve", json={"did": did})
+
+    async def dereference_schema(self, schema_id: str) -> Schema:
+        """Dereference a schema."""
+        return await self.post(
+            "/dereference/schema",
+            json={"schema_id": schema_id},
+            response=Schema,
+        )
+
+    async def dereference_cred_def(self, cred_def_id: str) -> CredDef:
+        """Dereference a cred def."""
+        return await self.post(
+            "/dereference/cred-def",
+            json={"cred_def_id": cred_def_id},
+            response=CredDef,
+        )
+
+    async def dereference_rev_reg_def(self, rev_reg_def_id: str) -> RevRegDef:
+        """Dereference a rev reg def."""
+        return await self.post(
+            "/dereference/rev-reg-def",
+            json={"rev_reg_def_id": rev_reg_def_id},
+            response=RevRegDef,
+        )
+
+    async def resolve_rev_status_list(
+        self,
+        rev_reg_def_id: str,
+        timestamp_from: int | None = 0,
+        timestamp_to: int | None = None,
+    ) -> RevStatusList:
+        """Resolve a revocation status list."""
+        return await self.post(
+            "/resolve/rev-status-list",
+            json={
+                "rev_reg_def_id": rev_reg_def_id,
+                "timestamp_from": timestamp_from,
+                "timestamp_to": timestamp_to,
+            },
+            response=RevStatusList,
+        )
