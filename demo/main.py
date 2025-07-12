@@ -20,9 +20,11 @@ from base58 import b58encode
 
 from did_indy.author.author import Author, AuthorDependencies
 from did_indy.author.lite import AuthorLite
+from did_indy.author.resolver_lite import ResolverLite
 from did_indy.cache import BasicCache
 from did_indy.client.client import IndyDriverAdminClient, IndyDriverClient
 from did_indy.ledger import LedgerPool, fetch_genesis_transactions
+from did_indy.resolver import Resolver
 from did_indy.signer import Signer
 
 
@@ -90,13 +92,17 @@ async def thin():
 
     nym = generate_nym()
     author = AuthorLite(client, get_signer(nym.key))
+    resolver = ResolverLite(client)
+
     result = await author.create_nym(NAMESPACE, nym.verkey, taa=taa)
     did = result.did
+    await resolver.resolve_did(did)
 
     schema = Schema.create(
         name="test", version="1.0", issuer_id=did, attr_names=["firstname", "lastname"]
     )
     result = await author.register_schema(schema, taa)
+    await resolver.get_schema(result.schema_id)
 
     cred_def, private, proof = CredentialDefinition.create(
         schema_id=result.schema_id,
@@ -107,6 +113,7 @@ async def thin():
         support_revocation=True,
     )
     result = await author.register_cred_def(cred_def, taa)
+    await resolver.get_cred_def(result.cred_def_id)
 
     rev_reg_def, private = RevocationRegistryDefinition.create(
         cred_def_id=result.cred_def_id,
@@ -117,6 +124,7 @@ async def thin():
         max_cred_num=1000,
     )
     result = await author.register_rev_reg_def(rev_reg_def, taa)
+    await resolver.get_rev_reg_def(result.rev_reg_def_id)
 
     rev_reg_def_id = result.rev_reg_def_id
     revocation_list = RevocationStatusList.create(
@@ -127,6 +135,7 @@ async def thin():
         issuer_id=did,
     )
     result = await author.register_rev_status_list(revocation_list, taa)
+    await resolver.get_rev_status_list(rev_reg_def_id)
 
     next_list = revocation_list.update(
         cred_def=cred_def,
@@ -143,6 +152,7 @@ async def thin():
         revoked=[1],
         taa=taa,
     )
+    await resolver.get_rev_status_list(rev_reg_def_id)
 
 
 class AuthorDependenciesBasic(AuthorDependencies):
@@ -184,9 +194,12 @@ async def thick():
         cache=BasicCache(),
     )
 
-    author = Author(client, AuthorDependenciesBasic(nym.key, pool))
+    deps = AuthorDependenciesBasic(nym.key, pool)
+    author = Author(client, deps)
+    resolver = Resolver(deps)
     result = await author.create_nym(NAMESPACE, nym.verkey, taa=taa)
     did = result.did
+    await resolver.resolve_did(did)
 
     schema = Schema.create(
         name="test",
@@ -195,6 +208,7 @@ async def thick():
         issuer_id=did,
     )
     result = await author.register_schema(schema, taa)
+    await resolver.get_schema(result.schema_id)
 
     cred_def, private, proof = CredentialDefinition.create(
         schema_id=result.schema_id,
@@ -205,6 +219,7 @@ async def thick():
         support_revocation=True,
     )
     result = await author.register_cred_def(cred_def, taa)
+    await resolver.get_cred_def(result.cred_def_id)
 
     rev_reg_def, private = RevocationRegistryDefinition.create(
         cred_def_id=result.cred_def_id,
@@ -215,6 +230,7 @@ async def thick():
         max_cred_num=1000,
     )
     result = await author.register_rev_reg_def(rev_reg_def, taa)
+    await resolver.get_rev_reg_def(result.rev_reg_def_id)
 
     rev_reg_def_id = result.rev_reg_def_id
     revocation_list = RevocationStatusList.create(
@@ -225,6 +241,7 @@ async def thick():
         issuer_id=did,
     )
     result = await author.register_rev_status_list(revocation_list, taa)
+    await resolver.get_rev_status_list(rev_reg_def_id)
 
     next_list = revocation_list.update(
         cred_def=cred_def,
@@ -241,6 +258,7 @@ async def thick():
         revoked=[1],
         taa=taa,
     )
+    await resolver.get_rev_status_list(rev_reg_def_id)
 
 
 if __name__ == "__main__":
