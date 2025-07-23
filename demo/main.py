@@ -1,13 +1,13 @@
 """Demo script."""
 
 import asyncio
-from dataclasses import dataclass
-from time import time
-from hashlib import sha256
 import logging
+import sys
+from dataclasses import dataclass
+from hashlib import sha256
 from os import getenv
 from secrets import token_bytes
-import sys
+from time import time
 
 from anoncreds import (
     CredentialDefinition,
@@ -19,14 +19,14 @@ from aries_askar import Key, KeyAlg
 from base58 import b58encode
 
 from did_indy.author.author import Author, AuthorDependencies
-from did_indy.author.lite import AuthorLite
+from did_indy.author.lite import AuthorLite, AuthorLiteDependencies
 from did_indy.author.resolver_lite import ResolverLite
 from did_indy.cache import BasicCache
 from did_indy.client.client import IndyDriverAdminClient, IndyDriverClient
 from did_indy.ledger import LedgerPool, fetch_genesis_transactions
+from did_indy.models.taa import TaaAcceptance
 from did_indy.resolver import Resolver
 from did_indy.signer import Signer
-
 
 DRIVER = getenv("DRIVER", "http://driver")
 LOG_LEVEL = getenv("LOG_LEVEL", "info")
@@ -72,6 +72,18 @@ def get_signer(key: Key):
     return _signer
 
 
+class AuthorLiteDependenciesBasic(AuthorLiteDependencies):
+    def __init__(self, key: Key, taa: TaaAcceptance | None = None):
+        self.key = key
+        self.taa = taa
+
+    async def get_signer(self, did: str) -> Signer:
+        return self.key.sign_message  # type: ignore
+
+    async def get_taa(self, namespace: str) -> TaaAcceptance | None:
+        return self.taa
+
+
 async def thin():
     """Demo a thin client."""
     logging_to_stdout()
@@ -91,17 +103,17 @@ async def thin():
     taa = await client.accept_taa(taa_info, "on_file")
 
     nym = generate_nym()
-    author = AuthorLite(client, get_signer(nym.key))
+    author = AuthorLite(client, AuthorLiteDependenciesBasic(nym.key, taa))
     resolver = ResolverLite(client)
 
-    result = await author.create_nym(NAMESPACE, nym.verkey, taa=taa)
+    result = await author.create_nym(NAMESPACE, nym.verkey)
     did = result.did
     await resolver.resolve_did(did)
 
     schema = Schema.create(
         name="test", version="1.0", issuer_id=did, attr_names=["firstname", "lastname"]
     )
-    result = await author.register_schema(schema, taa)
+    result = await author.register_schema(schema)
     await resolver.get_schema(result.schema_id)
 
     cred_def, private, proof = CredentialDefinition.create(
@@ -112,7 +124,7 @@ async def thin():
         signature_type="CL",
         support_revocation=True,
     )
-    result = await author.register_cred_def(cred_def, taa)
+    result = await author.register_cred_def(cred_def)
     await resolver.get_cred_def(result.cred_def_id)
 
     rev_reg_def, private = RevocationRegistryDefinition.create(
@@ -123,7 +135,7 @@ async def thin():
         registry_type="CL_ACCUM",
         max_cred_num=1000,
     )
-    result = await author.register_rev_reg_def(rev_reg_def, taa)
+    result = await author.register_rev_reg_def(rev_reg_def)
     await resolver.get_rev_reg_def(result.rev_reg_def_id)
 
     rev_reg_def_id = result.rev_reg_def_id
@@ -134,7 +146,7 @@ async def thin():
         rev_reg_def_private=private,
         issuer_id=did,
     )
-    result = await author.register_rev_status_list(revocation_list, taa)
+    result = await author.register_rev_status_list(revocation_list)
     await resolver.get_rev_status_list(rev_reg_def_id)
 
     next_list = revocation_list.update(
@@ -150,21 +162,24 @@ async def thin():
         prev_list=revocation_list,
         curr_list=next_list,
         revoked=[1],
-        taa=taa,
     )
     await resolver.get_rev_status_list(rev_reg_def_id)
 
 
 class AuthorDependenciesBasic(AuthorDependencies):
-    def __init__(self, key: Key, pool: LedgerPool):
+    def __init__(self, key: Key, pool: LedgerPool, taa: TaaAcceptance | None = None):
         self.key = key
         self.pool = pool
+        self.taa = taa
 
     async def get_signer(self, did: str) -> Signer:
         return self.key.sign_message  # type: ignore
 
     async def get_pool(self, namespace: str) -> LedgerPool:
         return self.pool
+
+    async def get_taa(self, namespace: str) -> TaaAcceptance | None:
+        return self.taa
 
 
 async def thick():
@@ -194,10 +209,10 @@ async def thick():
         cache=BasicCache(),
     )
 
-    deps = AuthorDependenciesBasic(nym.key, pool)
+    deps = AuthorDependenciesBasic(nym.key, pool, taa)
     author = Author(client, deps)
     resolver = Resolver(deps)
-    result = await author.create_nym(NAMESPACE, nym.verkey, taa=taa)
+    result = await author.create_nym(NAMESPACE, nym.verkey)
     did = result.did
     await resolver.resolve_did(did)
 
@@ -207,7 +222,7 @@ async def thick():
         attr_names=["firstname", "lastname"],
         issuer_id=did,
     )
-    result = await author.register_schema(schema, taa)
+    result = await author.register_schema(schema)
     await resolver.get_schema(result.schema_id)
 
     cred_def, private, proof = CredentialDefinition.create(
@@ -218,7 +233,7 @@ async def thick():
         signature_type="CL",
         support_revocation=True,
     )
-    result = await author.register_cred_def(cred_def, taa)
+    result = await author.register_cred_def(cred_def)
     await resolver.get_cred_def(result.cred_def_id)
 
     rev_reg_def, private = RevocationRegistryDefinition.create(
@@ -229,7 +244,7 @@ async def thick():
         registry_type="CL_ACCUM",
         max_cred_num=1000,
     )
-    result = await author.register_rev_reg_def(rev_reg_def, taa)
+    result = await author.register_rev_reg_def(rev_reg_def)
     await resolver.get_rev_reg_def(result.rev_reg_def_id)
 
     rev_reg_def_id = result.rev_reg_def_id
@@ -240,7 +255,7 @@ async def thick():
         rev_reg_def_private=private,
         issuer_id=did,
     )
-    result = await author.register_rev_status_list(revocation_list, taa)
+    result = await author.register_rev_status_list(revocation_list)
     await resolver.get_rev_status_list(rev_reg_def_id)
 
     next_list = revocation_list.update(
@@ -256,7 +271,6 @@ async def thick():
         prev_list=revocation_list,
         curr_list=next_list,
         revoked=[1],
-        taa=taa,
     )
     await resolver.get_rev_status_list(rev_reg_def_id)
 

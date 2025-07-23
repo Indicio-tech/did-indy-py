@@ -3,7 +3,6 @@
 import logging
 from typing import Protocol
 
-
 from did_indy.anoncreds import (
     CredDefTypes,
     RevRegDefTypes,
@@ -35,10 +34,9 @@ from did_indy.driver.api.txns import (
     SchemaSubmitResponse,
     make_indy_cred_def_id_from_result,
 )
-from did_indy.signer import Signer
 from did_indy.ledger import Ledger, LedgerPool, LedgerTransactionError
 from did_indy.models.anoncreds import Schema
-from did_indy.models.taa import TaaAcceptance
+from did_indy.models.taa import TaaAcceptance, TAAInfo
 from did_indy.models.txn import (
     CredDefTxnData,
     RevRegDefTxnData,
@@ -46,7 +44,7 @@ from did_indy.models.txn import (
     SchemaTxnData,
     TxnResult,
 )
-
+from did_indy.signer import Signer
 
 LOGGER = logging.getLogger(__name__)
 
@@ -74,6 +72,10 @@ class AuthorDependencies(Protocol):
         """Retrieve the pool for a namespace."""
         ...
 
+    async def get_taa(self, namespace: str) -> TaaAcceptance | None:
+        """Retrieve TAA for this namespace."""
+        ...
+
 
 class Author(BaseAuthor):
     """Ledger capable author implementation.
@@ -90,6 +92,19 @@ class Author(BaseAuthor):
         self.client = client
         self.depends = depends
 
+    async def get_taa(self, namespace: str) -> TAAInfo:
+        """Get TAA Info."""
+        return await self.client.get_taa(namespace)
+
+    async def accept_taa(
+        self, info: TAAInfo, mechanism: str, accept_time: int | None = None
+    ) -> TaaAcceptance | None:
+        """Generate TAA Acceptance object.
+
+        If TAA is not required by ledger (as indicated in info), returns None.
+        """
+        return await self.client.accept_taa(info, mechanism, accept_time)
+
     async def create_nym(
         self,
         namespace: str,
@@ -100,6 +115,7 @@ class Author(BaseAuthor):
         taa: TaaAcceptance | None = None,
     ) -> NymResponse:
         """Publish a DID, generated from a verkey, with additional DID Doc content."""
+        taa = taa or await self.depends.get_taa(namespace)
         return await self.client.create_nym(
             namespace,
             verkey,
@@ -117,6 +133,8 @@ class Author(BaseAuthor):
         """Register a schema."""
         schema = normalize_schema_representation(schema)
         submitter = parse_did_indy(schema.issuer_id)
+
+        taa = taa or await self.depends.get_taa(submitter.namespace)
 
         try:
             pool = await self.depends.get_pool(submitter.namespace)
@@ -166,6 +184,8 @@ class Author(BaseAuthor):
         """Register a credential definition."""
         cred_def = normalize_cred_def_representation(cred_def)
         submitter = parse_did_indy(cred_def.issuer_id)
+
+        taa = taa or await self.depends.get_taa(submitter.namespace)
 
         try:
             pool = await self.depends.get_pool(submitter.namespace)
@@ -221,6 +241,8 @@ class Author(BaseAuthor):
         rev_reg_def = normalize_rev_reg_def_representation(rev_reg_def)
         submitter = parse_did_indy(rev_reg_def.issuer_id)
 
+        taa = taa or await self.depends.get_taa(submitter.namespace)
+
         try:
             pool = await self.depends.get_pool(submitter.namespace)
         except Exception as err:
@@ -272,6 +294,8 @@ class Author(BaseAuthor):
         rev_status_list = normalize_rev_status_list_representation(rev_status_list)
         submitter = parse_did_indy(rev_status_list.issuer_id)
 
+        taa = taa or await self.depends.get_taa(submitter.namespace)
+
         try:
             pool = await self.depends.get_pool(submitter.namespace)
         except Exception as err:
@@ -319,6 +343,8 @@ class Author(BaseAuthor):
             raise AuthorError("Previous and current list are not for same rev reg")
 
         submitter = parse_did_indy(curr_list.issuer_id)
+
+        taa = taa or await self.depends.get_taa(submitter.namespace)
 
         try:
             pool = await self.depends.get_pool(submitter.namespace)

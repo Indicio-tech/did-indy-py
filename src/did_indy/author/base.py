@@ -15,11 +15,24 @@ from did_indy.driver.api.txns import (
     RevStatusListSubmitResponse,
     SchemaSubmitResponse,
 )
-from did_indy.models.taa import TaaAcceptance
+from did_indy.models.taa import TaaAcceptance, TAAInfo
 
 
 class BaseAuthor(Protocol):
     """Base protocol for Author classes."""
+
+    async def get_taa(self, namespace: str) -> TAAInfo:
+        """Get TAA Info."""
+        ...
+
+    async def accept_taa(
+        self, info: TAAInfo, mechanism: str, accept_time: int | None = None
+    ) -> TaaAcceptance | None:
+        """Generate TAA Acceptance object.
+
+        If TAA is not required by ledger (as indicated in info), returns None.
+        """
+        ...
 
     async def create_nym(
         self,
