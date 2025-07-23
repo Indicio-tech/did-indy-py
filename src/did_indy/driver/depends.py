@@ -7,29 +7,30 @@ from typing import Annotated
 
 from aries_askar import Key, KeyAlg, Store
 from base58 import b58encode
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.table import Table
 
 from did_indy.cache import BasicCache, Cache
 from did_indy.config import LedgerConfig, LocalLedgerGenesis, RemoteLedgerGenesis
-from did_indy.ledger import LedgerPool, ReadOnlyLedger, get_genesis_transactions
 from did_indy.driver.config import Config
-from did_indy.driver.ledgers import Ledgers, store_nym_and_key
+from did_indy.driver.ledgers import Ledgers, UnknownNamespaceError, store_nym_and_key
 from did_indy.driver.taa import accept_txn_author_agreement
-
+from did_indy.ledger import LedgerPool, ReadOnlyLedger, get_genesis_transactions
+from did_indy.resolver import Resolver
 
 config: Config | None = None
 cache: Cache | None = None
 store: Store | None = None
 ledgers: Ledgers | None = None
+resolver: Resolver | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Setup dependencies"""
-    global config, cache, store, ledgers
+    global config, cache, store, ledgers, resolver
 
     # For pretty printing
     console = Console(width=90)
@@ -53,6 +54,7 @@ async def lifespan(app: FastAPI):
         )
 
     ledgers = Ledgers()
+    resolver = Resolver(ledgers)
     nyms = []
     for ledger in ledgers_config.ledgers:
         nym, verkey = await derive_nym_from_seed(store, ledger.seed, ledger.namespace)
@@ -127,16 +129,34 @@ async def init_ledger_pool(
     return pool
 
 
-def get_ledgers() -> Ledgers:
+def get_ledgers():
     """Retrieve ledgers registry."""
     global ledgers
     if ledgers is None:
         raise RuntimeError("Ledgers is not set; did startup fail?")
 
-    return ledgers
+    try:
+        yield ledgers
+    except UnknownNamespaceError as err:
+        raise HTTPException(404, detail=f"Namespace {err.namespace} is unknown")
 
 
 LedgersDep = Annotated[Ledgers, Depends(get_ledgers)]
+
+
+def get_resolver():
+    """Get resolver provider."""
+    global resolver
+    if resolver is None:
+        raise RuntimeError("Resolver is not set; did startup fail?")
+
+    try:
+        yield resolver
+    except UnknownNamespaceError as err:
+        raise HTTPException(404, detail=f"Namespace {err.namespace} is unknown")
+
+
+ResolverDep = Annotated[Resolver, Depends(get_resolver)]
 
 
 async def derive_nym_from_seed(store: Store, seed: str, namespace: str):

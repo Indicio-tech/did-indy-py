@@ -3,19 +3,30 @@
 import asyncio
 import base64
 import hashlib
+import json
 import logging
 import os
 import tempfile
 from io import StringIO
 from pathlib import Path
+from time import time
 from typing import Optional, TypeVar, cast
 
-from indy_vdr import Pool, Request, VdrError, ledger, open_pool
+from indy_vdr import LedgerType, Pool, Request, VdrError, ledger, open_pool
+from indy_vdr.bindings import dereference
 
 from did_indy.cache import Cache
 from did_indy.config import LocalLedgerGenesis, RemoteLedgerGenesis
 from did_indy.models.endorsement import Endorsement
 from did_indy.models.taa import TaaAcceptance, TAAInfo, TAARecord
+from did_indy.models.txn.data import SchemaTxnData
+from did_indy.models.txn.deref import (
+    CredDefDeref,
+    GetRevRegDefReply,
+    GetTxnReply,
+    RevRegDefDeref,
+    SchemaDeref,
+)
 from did_indy.signer import Signer, sign_message
 from did_indy.utils import FetchError, fetch
 
@@ -379,6 +390,186 @@ class BaseLedger:
             )
 
         return TAAInfo(aml=aml_found, taa=taa_record, required=taa_required)
+
+    async def dereference(self, did_url: str) -> dict:
+        """Dereference a DID URL to an object."""
+        if not self.pool.handle or not self.pool.handle.handle:
+            raise ClosedPoolError(
+                f"Cannot dereference using a closed pool '{self.pool.name}'"
+            )
+
+        try:
+            result = json.loads(await dereference(self.pool.handle.handle, did_url))
+        except VdrError as err:
+            raise LedgerError("Ledger request error") from err
+        return result
+
+    async def deref_schema(self, schema_id: str) -> SchemaDeref:
+        """Retrieve schema by ID (DID URL)."""
+        result = await self.dereference(schema_id)
+        schema_result = SchemaDeref.model_validate(result)
+        return schema_result
+
+    async def get_schema_by_seq_no(self, seq_no: int) -> GetTxnReply[SchemaTxnData]:
+        request = ledger.build_get_txn_request(
+            submitter_did=None,
+            ledger_type=LedgerType.DOMAIN,
+            seq_no=seq_no,
+        )
+        result = await self.get(request)
+        response = GetTxnReply[SchemaTxnData].model_validate(result)
+        return response
+
+    async def deref_cred_def(self, cred_def_id: str) -> CredDefDeref:
+        """Retrieve cred def by ID (DID URL)."""
+        result = await self.dereference(cred_def_id)
+        cred_def_result = CredDefDeref.model_validate(result)
+        return cred_def_result
+
+    async def deref_rev_reg_def(self, rev_reg_def_id: str) -> RevRegDefDeref:
+        """Retrieve a rev reg def by ID (DID URL)."""
+        result = await self.dereference(rev_reg_def_id)
+        rev_reg_def_result = RevRegDefDeref.model_validate(result)
+        return rev_reg_def_result
+
+    # --- Get Revocation Status List Helpers
+    # These are all necessary since we don't have a convenient helper like dereference
+    # for status lists since they're identified by rev_reg_def_id and time range.
+
+    async def deref_revoc_reg_entry(
+        self, indy_rev_reg_def_id: str, timestamp: int
+    ) -> tuple[dict, int]:
+        """Get revocation registry entry by rev reg def id and timestamp."""
+        if not self.pool.handle or not self.pool.handle.handle:
+            raise ClosedPoolError(
+                f"Cannot submit get request to closed pool '{self.pool.name}'"
+            )
+
+        request = ledger.build_get_revoc_reg_request(
+            submitter_did=None,
+            revoc_reg_id=indy_rev_reg_def_id,
+            timestamp=timestamp,
+        )
+        try:
+            response = await self.pool.handle.submit_request(request)
+        except VdrError as err:
+            raise LedgerError(
+                f"Failed to retrieve rev entry for {indy_rev_reg_def_id}"
+            ) from err
+
+        ledger_timestamp = response["data"]["txnTime"]
+        reg_entry = {
+            "ver": "1.0",
+            "value": response["data"]["value"],
+        }
+        if response["data"]["revocRegDefId"] != indy_rev_reg_def_id:
+            raise LedgerError(
+                "ID of revocation registry response does not match requested ID"
+            )
+        return reg_entry, ledger_timestamp
+
+    async def fetch_revoc_reg_delta(
+        self,
+        indy_rev_reg_def_id: str,
+        timestamp_from: int | None,
+        timestamp_to: int | None,
+    ) -> dict:
+        """Get revocation registry definition from ledger."""
+        if not self.pool.handle or not self.pool.handle.handle:
+            raise ClosedPoolError(
+                f"Cannot submit get request to closed pool '{self.pool.name}'"
+            )
+
+        if timestamp_to is None:
+            timestamp_to = int(time())
+
+        request = ledger.build_get_revoc_reg_delta_request(
+            submitter_did=None,
+            revoc_reg_id=indy_rev_reg_def_id,
+            from_ts=timestamp_from,
+            to_ts=timestamp_to,
+        )
+        try:
+            response = await self.pool.handle.submit_request(request)
+        except VdrError as err:
+            raise LedgerError(
+                f"Failed to retrieve rev_status_list for {indy_rev_reg_def_id}"
+            ) from err
+        LOGGER.debug("revoc_reg_delta response: %s", response)
+
+        if response["data"]["revocRegDefId"] != indy_rev_reg_def_id:
+            raise LedgerError(
+                "ID of revocation registry response does not match requested ID"
+            )
+        response_value = response["data"]["value"]
+        return response_value
+
+    async def get_revoc_reg_delta(
+        self,
+        indy_rev_reg_def_id: str,
+        timestamp_from: int | None,
+        timestamp_to: int | None,
+    ) -> tuple[dict, int]:
+        """Get revocation registry delta, with checks to correct time to reg creation."""
+        response = await self.fetch_revoc_reg_delta(
+            indy_rev_reg_def_id,
+            timestamp_from,
+            timestamp_to,
+        )
+
+        # If accum_to is not present, then the timestamp_to was before the registry
+        # was created. In this case, we need to fetch the registry creation timestamp and
+        # re-calculate the delta.
+        if not response.get("accum_to"):
+            _, timestamp_to = await self.deref_revoc_reg_entry(
+                indy_rev_reg_def_id, int(time())
+            )
+            response = await self.fetch_revoc_reg_delta(
+                indy_rev_reg_def_id, timestamp_from, timestamp_to
+            )
+
+        delta = {
+            "accum": response["accum_to"]["value"]["accum"],
+            "issued": response.get("issued", []),
+            "revoked": response.get("revoked", []),
+        }
+        accum_from = response.get("accum_from")
+        if accum_from:
+            delta["prev_accum"] = accum_from["value"]["accum"]
+        reg_delta = {"ver": "1.0", "value": delta}
+        # question - why not response["to"] ?
+        delta_timestamp = response["accum_to"]["txnTime"]
+        return reg_delta, delta_timestamp
+
+    async def get_or_fetch_rev_reg_def_max_cred_num(
+        self, indy_rev_reg_def_id: str
+    ) -> int:
+        """Retrieve max cred num for a rev reg def.
+
+        The value is retrieved from cache or from the ledger if necessary.
+        The issuer could retrieve this value from the wallet but this info
+        must also be known to the holder.
+        """
+        cache = self.pool.cache
+        cache_key = f"rev_reg_max_cred_num::{indy_rev_reg_def_id}"
+
+        max_cred_num = await cache.get(cache_key)
+        if max_cred_num:
+            return max_cred_num
+
+        request = ledger.build_get_revoc_reg_def_request(
+            submitter_did=None,
+            revoc_reg_id=indy_rev_reg_def_id,
+        )
+        result = await self.get(request)
+        response = GetRevRegDefReply.model_validate(result)
+        max_cred_num = response.data.value.max_cred_num
+
+        await cache.set(cache_key, max_cred_num)
+
+        return max_cred_num
+
+    # --- END Get Revocation Status List Helpers
 
 
 class ReadOnlyLedger(BaseLedger):

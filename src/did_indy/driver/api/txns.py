@@ -39,6 +39,7 @@ from did_indy.driver.taa import get_latest_txn_author_acceptance
 from did_indy.ledger import (
     Ledger,
     LedgerTransactionError,
+    ReadOnlyLedger,
 )
 from did_indy.models.anoncreds import CredDef, RevRegDef, RevStatusList, Schema
 from did_indy.models.taa import TaaAcceptance
@@ -55,7 +56,6 @@ from did_indy.models.txn import (
     TxnRequest,
     TxnResult,
 )
-from did_indy.resolver import Resolver
 
 router = APIRouter(prefix="/txn")
 LOGGER = logging.getLogger(__name__)
@@ -360,9 +360,9 @@ async def post_cred_def(
     if not pool:
         raise HTTPException(404, f"No ledger known for namespace {submitter.namespace}")
 
-    async with Resolver(pool) as resolver:
+    async with ReadOnlyLedger(pool) as ledger:
         try:
-            schema_deref = await resolver.get_schema(req.cred_def.schema_id)
+            schema_deref = await ledger.deref_schema(req.cred_def.schema_id)
         except LedgerTransactionError as error:
             raise HTTPException(400, f"Cannot retrieve schema: {error}") from error
 
