@@ -94,12 +94,19 @@ class Author(BaseAuthor):
         self,
         namespace: str,
         verkey: str,
+        nym: str | None = None,
         diddoc_content: str | None = None,
+        version: int | None = None,
         taa: TaaAcceptance | None = None,
     ) -> NymResponse:
         """Publish a DID, generated from a verkey, with additional DID Doc content."""
         return await self.client.create_nym(
-            namespace, verkey, diddoc_content=diddoc_content, taa=taa
+            namespace,
+            verkey,
+            nym=nym,
+            diddoc_content=diddoc_content,
+            version=version,
+            taa=taa,
         )
 
     async def register_schema(

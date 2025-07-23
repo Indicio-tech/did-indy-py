@@ -25,7 +25,9 @@ class BaseAuthor(Protocol):
         self,
         namespace: str,
         verkey: str,
+        nym: str | None = None,
         diddoc_content: str | None = None,
+        version: int | None = None,
         taa: TaaAcceptance | None = None,
     ) -> NymResponse:
         """Publish a DID, generated from a verkey, with additional DID Doc content."""

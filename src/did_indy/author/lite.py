@@ -1,6 +1,5 @@
 """Lite Author implementation."""
 
-from did_indy.author.base import BaseAuthor
 from did_indy.anoncreds import (
     CredDefTypes,
     RevRegDefTypes,
@@ -11,6 +10,7 @@ from did_indy.anoncreds import (
     normalize_rev_status_list_representation,
     normalize_schema_representation,
 )
+from did_indy.author.base import BaseAuthor
 from did_indy.client.client import IndyDriverClient
 from did_indy.driver.api.txns import (
     CredDefSubmitResponse,
@@ -19,8 +19,8 @@ from did_indy.driver.api.txns import (
     RevStatusListSubmitResponse,
     SchemaSubmitResponse,
 )
-from did_indy.signer import Signer, sign_message
 from did_indy.models.taa import TaaAcceptance
+from did_indy.signer import Signer, sign_message
 
 
 class AuthorLite(BaseAuthor):
@@ -38,12 +38,19 @@ class AuthorLite(BaseAuthor):
         self,
         namespace: str,
         verkey: str,
+        nym: str | None = None,
         diddoc_content: str | None = None,
+        version: int | None = None,
         taa: TaaAcceptance | None = None,
     ) -> NymResponse:
         """Publish a DID, generated from a verkey, with additional DID Doc content."""
         return await self.client.create_nym(
-            namespace, verkey, diddoc_content=diddoc_content, taa=taa
+            namespace,
+            verkey,
+            nym=nym,
+            diddoc_content=diddoc_content,
+            version=version,
+            taa=taa,
         )
 
     async def register_schema(
