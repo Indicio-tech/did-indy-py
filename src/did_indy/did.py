@@ -70,3 +70,14 @@ def nym_from_verkey(verkey: str, version: int = 2) -> str:
     else:
         nym = b58encode(key[:16]).decode()
     return nym
+
+
+def derive_did_from_nym(namespace: str, nym: str) -> str:
+    """Derive what the DID would be for a nym in a namespace."""
+    return f"did:indy:{namespace}:{nym}"
+
+
+def derive_did_from_verkey(namespace: str, verkey: str, version: int = 2) -> str:
+    """Derive what the DID would be for a verkey in a namespace."""
+    nym = nym_from_verkey(verkey, version)
+    return derive_did_from_nym(namespace, nym)

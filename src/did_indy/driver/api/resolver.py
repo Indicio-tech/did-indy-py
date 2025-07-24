@@ -1,12 +1,13 @@
 """Resolver API."""
 
 from fastapi import APIRouter, Security
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from did_indy.driver.auto_endorse import SCOPE_RESOLVE
 from did_indy.driver.depends import ResolverDep
 from did_indy.driver.security import client
 from did_indy.models.anoncreds import CredDef, RevRegDef, RevStatusList, Schema
+from did_indy.models.txn.deref import CredDefDeref, RevRegDefDeref, SchemaDeref
 
 router = APIRouter(tags=["Resolver"])
 
@@ -51,16 +52,23 @@ class SchemaDerefRequest(BaseModel):
     schema_id: str
 
 
+class SchemaDerefResponse(BaseModel):
+    """Dereference response"""
+
+    schema_value: Schema = Field(alias="schema")
+    deref: SchemaDeref
+
+
 @router.post("/dereference/schema")
 async def post_dereference_schema(
     req: SchemaDerefRequest,
     resolver: ResolverDep,
     _=Security(client, scopes=[SCOPE_RESOLVE]),
-) -> Schema:
+) -> SchemaDerefResponse:
     """Dereference a DID URL."""
-    result = await resolver.get_schema(req.schema_id)
+    schema, deref = await resolver.get_schema(req.schema_id)
 
-    return result
+    return SchemaDerefResponse(schema=schema, deref=deref)
 
 
 class CredDefDerefRequest(BaseModel):
@@ -69,16 +77,23 @@ class CredDefDerefRequest(BaseModel):
     cred_def_id: str
 
 
+class CredDefDerefResponse(BaseModel):
+    """Dereference response"""
+
+    cred_def: CredDef
+    deref: CredDefDeref
+
+
 @router.post("/dereference/cred-def")
 async def post_dereference_cred_def(
     req: CredDefDerefRequest,
     resolver: ResolverDep,
     _=Security(client, scopes=[SCOPE_RESOLVE]),
-) -> CredDef:
+) -> CredDefDerefResponse:
     """Dereference a DID URL."""
-    result = await resolver.get_cred_def(req.cred_def_id)
+    cred_def, deref = await resolver.get_cred_def(req.cred_def_id)
 
-    return result
+    return CredDefDerefResponse(cred_def=cred_def, deref=deref)
 
 
 class RevRegDefDerefRequest(BaseModel):
@@ -87,16 +102,23 @@ class RevRegDefDerefRequest(BaseModel):
     rev_reg_def_id: str
 
 
+class RevRegDefDerefResponse(BaseModel):
+    """Dereference response"""
+
+    rev_reg_def: RevRegDef
+    deref: RevRegDefDeref
+
+
 @router.post("/dereference/rev-reg-def")
 async def post_dereference_rev_reg_def(
     req: RevRegDefDerefRequest,
     resolver: ResolverDep,
     _=Security(client, scopes=[SCOPE_RESOLVE]),
-) -> RevRegDef:
+) -> RevRegDefDerefResponse:
     """Dereference a DID URL."""
-    result = await resolver.get_rev_reg_def(req.rev_reg_def_id)
+    rev_reg_def, deref = await resolver.get_rev_reg_def(req.rev_reg_def_id)
 
-    return result
+    return RevRegDefDerefResponse(rev_reg_def=rev_reg_def, deref=deref)
 
 
 class ResolveRevStatusListRequest(BaseModel):

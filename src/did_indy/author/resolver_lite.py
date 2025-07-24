@@ -5,6 +5,7 @@ from typing import Any
 
 from did_indy.client.client import IndyDriverClient
 from did_indy.models.anoncreds import CredDef, RevRegDef, RevStatusList, Schema
+from did_indy.models.txn.deref import CredDefDeref, RevRegDefDeref, SchemaDeref
 from did_indy.resolver import ResolverProto
 
 
@@ -24,15 +25,17 @@ class ResolverLite(ResolverProto):
         """Resolve a DID."""
         return await self.client.resolve_did(did)
 
-    async def get_schema(self, schema_id: str) -> Schema:
+    async def get_schema(self, schema_id: str) -> tuple[Schema, SchemaDeref]:
         """Dereference a schema."""
         return await self.client.dereference_schema(schema_id)
 
-    async def get_cred_def(self, cred_def_id: str) -> CredDef:
+    async def get_cred_def(self, cred_def_id: str) -> tuple[CredDef, CredDefDeref]:
         """Dereference a cred def."""
         return await self.client.dereference_cred_def(cred_def_id)
 
-    async def get_rev_reg_def(self, rev_reg_def_id: str) -> RevRegDef:
+    async def get_rev_reg_def(
+        self, rev_reg_def_id: str
+    ) -> tuple[RevRegDef, RevRegDefDeref]:
         """Dereference a rev reg def."""
         return await self.client.dereference_rev_reg_def(rev_reg_def_id)
 
