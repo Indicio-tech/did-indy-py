@@ -19,6 +19,7 @@ from did_indy.driver.api.txns import (
 )
 from did_indy.models.anoncreds import CredDef, RevRegDef, RevStatusList, Schema
 from did_indy.models.endorsement import Endorsement
+from did_indy.models.txn.deref import CredDefDeref, RevRegDefDeref, SchemaDeref
 
 
 from .http import HTTPClient
@@ -441,29 +442,39 @@ class IndyDriverClient(HTTPClient):
         """Resolve a DID."""
         return await self.post("/resolve", json={"did": did})
 
-    async def dereference_schema(self, schema_id: str) -> Schema:
+    async def dereference_schema(self, schema_id: str) -> tuple[Schema, SchemaDeref]:
         """Dereference a schema."""
-        return await self.post(
+        response = await self.post(
             "/dereference/schema",
             json={"schema_id": schema_id},
-            response=Schema,
         )
+        schema = Schema.model_validate(response["schema"])
+        deref = SchemaDeref.model_validate(response["deref"])
+        return schema, deref
 
-    async def dereference_cred_def(self, cred_def_id: str) -> CredDef:
+    async def dereference_cred_def(
+        self, cred_def_id: str
+    ) -> tuple[CredDef, CredDefDeref]:
         """Dereference a cred def."""
-        return await self.post(
+        response = await self.post(
             "/dereference/cred-def",
             json={"cred_def_id": cred_def_id},
-            response=CredDef,
         )
+        cred_def = CredDef.model_validate(response["cred_def"])
+        deref = CredDefDeref.model_validate(response["deref"])
+        return cred_def, deref
 
-    async def dereference_rev_reg_def(self, rev_reg_def_id: str) -> RevRegDef:
+    async def dereference_rev_reg_def(
+        self, rev_reg_def_id: str
+    ) -> tuple[RevRegDef, RevRegDefDeref]:
         """Dereference a rev reg def."""
-        return await self.post(
+        response = await self.post(
             "/dereference/rev-reg-def",
             json={"rev_reg_def_id": rev_reg_def_id},
-            response=RevRegDef,
         )
+        rev_reg_def = RevRegDef.model_validate(response["rev_reg_def"])
+        deref = RevRegDefDeref.model_validate(response["deref"])
+        return rev_reg_def, deref
 
     async def resolve_rev_status_list(
         self,
