@@ -105,7 +105,7 @@ class RevRegDefDerefRequest(BaseModel):
 class RevRegDefDerefResponse(BaseModel):
     """Dereference response"""
 
-    rev_ref_def: RevRegDef
+    rev_reg_def: RevRegDef
     deref: RevRegDefDeref
 
 
@@ -118,7 +118,7 @@ async def post_dereference_rev_reg_def(
     """Dereference a DID URL."""
     rev_reg_def, deref = await resolver.get_rev_reg_def(req.rev_reg_def_id)
 
-    return RevRegDefDerefResponse(rev_ref_def=rev_reg_def, deref=deref)
+    return RevRegDefDerefResponse(rev_reg_def=rev_reg_def, deref=deref)
 
 
 class ResolveRevStatusListRequest(BaseModel):
