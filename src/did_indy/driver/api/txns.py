@@ -321,6 +321,7 @@ class CredDefRequest(BaseModel):
     """Credential Definition create request."""
 
     cred_def: CredDef | str
+    schema_seq_no: int | None = None
     taa: TaaAcceptance | None = None
 
 
@@ -360,13 +361,16 @@ async def post_cred_def(
     if not pool:
         raise HTTPException(404, f"No ledger known for namespace {submitter.namespace}")
 
-    async with ReadOnlyLedger(pool) as ledger:
-        try:
-            schema_deref = await ledger.deref_schema(req.cred_def.schema_id)
-        except LedgerTransactionError as error:
-            raise HTTPException(400, f"Cannot retrieve schema: {error}") from error
+    schema_seq_no = req.schema_seq_no
+    if not schema_seq_no:
+        async with ReadOnlyLedger(pool) as ledger:
+            try:
+                schema_deref = await ledger.deref_schema(req.cred_def.schema_id)
+            except LedgerTransactionError as error:
+                raise HTTPException(400, f"Cannot retrieve schema: {error}") from error
 
-    schema_seq_no = schema_deref.contentMetadata.nodeResponse.result.seqNo
+        schema_seq_no = schema_deref.contentMetadata.nodeResponse.result.seqNo
+
     request = indy_cred_def_request(schema_seq_no, req.cred_def)
     request.set_endorser(nym)
     if req.taa:

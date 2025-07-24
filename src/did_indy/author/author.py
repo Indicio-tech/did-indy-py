@@ -179,6 +179,7 @@ class Author(BaseAuthor):
     async def register_cred_def(
         self,
         cred_def: CredDefTypes,
+        schema_seq_no: int | None = None,
         taa: TaaAcceptance | None = None,
     ) -> CredDefSubmitResponse:
         """Register a credential definition."""
@@ -204,13 +205,15 @@ class Author(BaseAuthor):
             ) from err
 
         async with Ledger(pool) as ledger:
-            try:
-                schema_deref = await ledger.deref_schema(cred_def.schema_id)
-            except LedgerTransactionError as error:
-                LOGGER.exception("Failed to retrieve schema")
-                raise AuthorError(f"Cannot retrieve schema: {error}") from error
+            if not schema_seq_no:
+                try:
+                    schema_deref = await ledger.deref_schema(cred_def.schema_id)
+                except LedgerTransactionError as error:
+                    LOGGER.exception("Failed to retrieve schema")
+                    raise AuthorError(f"Cannot retrieve schema: {error}") from error
 
-            schema_seq_no = schema_deref.contentMetadata.nodeResponse.result.seqNo
+                schema_seq_no = schema_deref.contentMetadata.nodeResponse.result.seqNo
+
             request = indy_cred_def_request(schema_seq_no, cred_def)
             if taa:
                 request.set_txn_author_agreement_acceptance(taa.for_request())

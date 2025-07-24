@@ -57,6 +57,7 @@ class BaseAuthor(Protocol):
     async def register_cred_def(
         self,
         cred_def: CredDefTypes,
+        schema_seq_no: int | None = None,
         taa: TaaAcceptance | None = None,
     ) -> CredDefSubmitResponse:
         """Register a credential definition."""
