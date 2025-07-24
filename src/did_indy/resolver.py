@@ -29,6 +29,7 @@ from did_indy.models.anoncreds import (
     RevStatusList,
     Schema,
 )
+from did_indy.models.txn.deref import CredDefDeref, RevRegDefDeref, SchemaDeref
 
 
 class ResolverError(Exception):
@@ -42,15 +43,17 @@ class ResolverProto(Protocol):
         """Resolve a did:indy DID."""
         ...
 
-    async def get_schema(self, schema_id: str) -> Schema:
+    async def get_schema(self, schema_id: str) -> tuple[Schema, SchemaDeref]:
         """Retrieve schema by ID (DID URL)."""
         ...
 
-    async def get_cred_def(self, cred_def_id: str) -> CredDef:
+    async def get_cred_def(self, cred_def_id: str) -> tuple[CredDef, CredDefDeref]:
         """Retrieve cred def by ID (DID URL)."""
         ...
 
-    async def get_rev_reg_def(self, rev_reg_def_id: str) -> RevRegDef:
+    async def get_rev_reg_def(
+        self, rev_reg_def_id: str
+    ) -> tuple[RevRegDef, RevRegDefDeref]:
         """Retrieve a rev reg def by ID (DID URL)."""
         ...
 
@@ -93,19 +96,21 @@ class Resolver(ResolverProto):
         async with PoolResolver(pool) as resolver:
             return await resolver.resolve_did(did)
 
-    async def get_schema(self, schema_id: str) -> Schema:
+    async def get_schema(self, schema_id: str) -> tuple[Schema, SchemaDeref]:
         """Retrieve schema by ID (DID URL)."""
         pool = await self.get_pool(parse_namespace_from_did_url(schema_id))
         async with PoolResolver(pool) as resolver:
             return await resolver.get_schema(schema_id)
 
-    async def get_cred_def(self, cred_def_id: str) -> CredDef:
+    async def get_cred_def(self, cred_def_id: str) -> tuple[CredDef, CredDefDeref]:
         """Retrieve cred def by ID (DID URL)."""
         pool = await self.get_pool(parse_namespace_from_did_url(cred_def_id))
         async with PoolResolver(pool) as resolver:
             return await resolver.get_cred_def(cred_def_id)
 
-    async def get_rev_reg_def(self, rev_reg_def_id: str) -> RevRegDef:
+    async def get_rev_reg_def(
+        self, rev_reg_def_id: str
+    ) -> tuple[RevRegDef, RevRegDefDeref]:
         """Retrieve a rev reg def by ID (DID URL)."""
         pool = await self.get_pool(parse_namespace_from_did_url(rev_reg_def_id))
         async with PoolResolver(pool) as resolver:
@@ -156,7 +161,7 @@ class PoolResolver(ResolverProto):
             raise ResolverError("Ledger request error") from err
         return result
 
-    async def get_schema(self, schema_id: str) -> Schema:
+    async def get_schema(self, schema_id: str) -> tuple[Schema, SchemaDeref]:
         """Retrieve schema by ID (DID URL)."""
         ledger = ReadOnlyLedger(self.pool)  # pool should already be open
         deref = await ledger.deref_schema(schema_id)
@@ -166,7 +171,7 @@ class PoolResolver(ResolverProto):
             attr_names=deref.contentStream.attr_names,
             name=deref.contentStream.name,
             version=deref.contentStream.version,
-        )
+        ), deref
 
     async def _get_or_fetch_schema_id_by_seq_no(
         self, ledger: ReadOnlyLedger, namespace: str, seq_no: int
@@ -192,7 +197,7 @@ class PoolResolver(ResolverProto):
         )
         return schema_id
 
-    async def get_cred_def(self, cred_def_id: str) -> CredDef:
+    async def get_cred_def(self, cred_def_id: str) -> tuple[CredDef, CredDefDeref]:
         """Retrieve cred def by ID (DID URL).
 
         Returning a CredDef is complicated because of needing to determine the full
@@ -214,9 +219,11 @@ class PoolResolver(ResolverProto):
             type="CL",
             tag=deref.contentMetadata.nodeResponse.result.tag,
             value=deref.contentMetadata.nodeResponse.result.data.model_dump(),
-        )
+        ), deref
 
-    async def get_rev_reg_def(self, rev_reg_def_id: str) -> RevRegDef:
+    async def get_rev_reg_def(
+        self, rev_reg_def_id: str
+    ) -> tuple[RevRegDef, RevRegDefDeref]:
         """Retrieve a rev reg def by ID (DID URL)."""
         ledger = ReadOnlyLedger(self.pool)  # pool should already be open
         deref = await ledger.deref_rev_reg_def(rev_reg_def_id)
@@ -236,7 +243,7 @@ class PoolResolver(ResolverProto):
                 tails_hash=value.tails_hash,
                 tails_location=value.tails_location,
             ),
-        )
+        ), deref
 
     def _indexes_to_bit_array(self, indexes: list[int], size: int) -> list[int]:
         """Turn a sequence of indexes into a full state bit array."""
