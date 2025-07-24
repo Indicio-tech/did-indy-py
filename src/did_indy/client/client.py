@@ -225,6 +225,7 @@ class IndyDriverClient(HTTPClient):
     async def create_cred_def(
         self,
         cred_def: dict | str,
+        schema_seq_no: int | None = None,
         taa: TaaAcceptance | None = None,
     ) -> TxnToSignResponse:
         """Create a cred def."""
@@ -232,6 +233,7 @@ class IndyDriverClient(HTTPClient):
             url="/txn/cred-def",
             json={
                 "cred_def": cred_def,
+                "schema_seq_no": schema_seq_no,
                 "taa": taa.for_request() if taa else None,
             },
             response=TxnToSignResponse,

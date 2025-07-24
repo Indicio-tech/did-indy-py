@@ -100,13 +100,16 @@ class AuthorLite(BaseAuthor):
     async def register_cred_def(
         self,
         cred_def: CredDefTypes,
+        schema_seq_no: int | None = None,
         taa: TaaAcceptance | None = None,
     ) -> CredDefSubmitResponse:
         """Register a credential definition."""
         cred_def = normalize_cred_def_representation(cred_def)
         namespace = parse_namespace_from_did(cred_def.issuer_id)
         taa = taa or await self.dependencies.get_taa(namespace)
-        txn = await self.client.create_cred_def(cred_def.model_dump(), taa)
+        txn = await self.client.create_cred_def(
+            cred_def.model_dump(), schema_seq_no, taa
+        )
         signer = await self.dependencies.get_signer(cred_def.issuer_id)
         sig = await sign_message(signer, txn.get_signature_input_bytes())
         result = await self.client.submit_cred_def(cred_def.issuer_id, txn.request, sig)
