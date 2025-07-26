@@ -218,7 +218,9 @@ class PoolResolver(ResolverProto):
             schema_id=schema_id,
             type="CL",
             tag=deref.contentMetadata.nodeResponse.result.tag,
-            value=deref.contentMetadata.nodeResponse.result.data.model_dump(),
+            value=deref.contentMetadata.nodeResponse.result.data.model_dump(
+                exclude_none=True
+            ),
         ), deref
 
     async def get_rev_reg_def(
