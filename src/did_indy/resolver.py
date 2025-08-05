@@ -186,7 +186,7 @@ class PoolResolver(ResolverProto):
 
         schema_ish = await ledger.get_schema_by_seq_no(seq_no)
 
-        schema_nym = schema_ish.identifier
+        schema_nym = schema_ish.data.txn.metadata.frm
         schema_data = schema_ish.data.txn.data.data
         schema_issuer_id = f"did:indy:{namespace}:{schema_nym}"
 
