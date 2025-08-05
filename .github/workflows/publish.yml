@@ -44,14 +44,15 @@ jobs:
           version: latest
 
       - name: Build and cache Docker image
-        uses: docker/build-push-action@v4 # v4.6.0
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile.release
           push: false
-          cache-from: type=gha,scope=didindy-py-${{ matrix.arch }}
-          cache-to: type=gha,scope=didindy-py-${{ matrix.arch }},mode=max
+          cache-from: type=gha,scope=didindy-py-${{ matrix.arch }}-${{ inputs.tag || github.event.release.tag_name }}
+          cache-to: type=gha,scope=didindy-py-${{ matrix.arch }}-${{ inputs.tag || github.event.release.tag_name }},mode=max
           platforms: linux/${{ matrix.arch }}
+
   publish-images:
     needs: build-image
     runs-on: ubuntu-latest
@@ -62,7 +63,6 @@ jobs:
       fail-fast: false
       matrix:
         python-version: [3.12]
-        arch: [amd64, arm64]
 
     steps:
       - name: Checkout code
@@ -99,15 +99,23 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.url=https://github.com/Indicio-tech/did-indy-py
             org.opencontainers.image.source=https://github.com/Indicio-tech/did-indy-py
+          annotations: |
+            org.opencontainers.image.description=did-indy-py built by https://github.com/Indicio-tech/
+            org.opencontainers.image.created=${{ github.event.release.published_at }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.url=https://github.com/Indicio-tech/did-indy-py
+            org.opencontainers.image.source=https://github.com/Indicio-tech/did-indy-py
 
       - name: Publish Docker image to ghcr.io
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v5
         with:
           push: true
           context: .
           file: ./Dockerfile.release
-          cache-from: type=gha,scope=didindy-py-${{ matrix.arch }}
-          cache-to: type=gha,scope=didindy-py-${{ matrix.arch }},mode=max
-          platforms: linux/${{ matrix.arch }}
+          cache-from: |
+            type=gha,scope=didindy-py-arm64-${{ inputs.tag || github.event.release.tag_name }}
+            type=gha,scope=didindy-py-amd64-${{ inputs.tag || github.event.release.tag_name }}
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.image_metadata.outputs.tags }}
           labels: ${{ steps.image_metadata.outputs.labels }}
+          annotations: ${{ steps.image_metadata.outputs.annotations }}
