@@ -20,6 +20,7 @@ class NamespaceInfo(BaseModel):
     namespace: str
     nym: str
     did: str
+    genesis_transaction: str
 
 
 class NamespaceList(BaseModel):
@@ -39,6 +40,7 @@ async def get_info(ledgers: LedgersDep, store: StoreDep) -> NamespaceList:
                 namespace=namespace,
                 nym=nym,
                 did=f"did:indy:{namespace}:{nym}",
+                genesis_transaction = ledgers.ledgers[namespace].genesis_txns_cache,
             )
         )
     return NamespaceList(namespaces=results)
