@@ -33,14 +33,14 @@ class NamespaceList(BaseModel):
 async def get_info(ledgers: LedgersDep, store: StoreDep) -> NamespaceList:
     """Return loaded namespaces."""
     results = []
-    for namespace in ledgers.ledgers.keys():
+    for namespace, pool in ledgers.ledgers.items():
         nym, _ = await get_nym_and_key(store, namespace)
         results.append(
             NamespaceInfo(
                 namespace=namespace,
                 nym=nym,
                 did=f"did:indy:{namespace}:{nym}",
-                genesis_transaction=ledgers.ledgers[namespace].genesis_txns_cache or "",
+                genesis_transaction=pool.genesis_txns_cache or "",
             )
         )
     return NamespaceList(namespaces=results)
