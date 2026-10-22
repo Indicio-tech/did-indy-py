@@ -32,6 +32,11 @@ jobs:
       - name: "Unit tests"
         run: uv run pytest -m unit
 
+      - uses: SonarSource/sonarqube-scan-action@v8
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
   integration:
     name: Integration
     runs-on: ubuntu-latest
